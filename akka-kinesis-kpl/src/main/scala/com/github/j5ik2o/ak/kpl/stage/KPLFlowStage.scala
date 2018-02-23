@@ -1,9 +1,9 @@
-package com.github.j5ik2o.ak.kpl
+package com.github.j5ik2o.ak.kpl.stage
 
 import akka.stream.stage._
 import akka.stream.{ Attributes, FlowShape, Inlet, Outlet }
 import com.amazonaws.services.kinesis.producer._
-import com.github.j5ik2o.ak.JavaFutureConverter._
+import com.github.j5ik2o.ak.kpl.dsl.KPLFlowSettings.{ Exponential, Lineal, RetryBackoffStrategy }
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -11,42 +11,53 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }
 
-class KPLFlowStage(kinesisProducerConfiguration: KinesisProducerConfiguration, settings: KPLFLowSettings)(
+class KPLFlowStage(kinesisProducerConfiguration: KinesisProducerConfiguration,
+                   maxRetries: Int,
+                   backoffStrategy: RetryBackoffStrategy,
+                   retryInitialTimeout: FiniteDuration)(
     implicit ec: ExecutionContext
 ) extends GraphStage[FlowShape[UserRecord, UserRecordResult]] {
-  private val in: Inlet[UserRecord]         = Inlet("KPLFlow.int")
-  private val out: Outlet[UserRecordResult] = Outlet("KPLFlow.out")
+
+  import com.github.j5ik2o.ak.JavaFutureConverter._
+
+  private val in  = Inlet[UserRecord]("KPLFlowStage.int")
+  private val out = Outlet[UserRecordResult]("KPLFlowStage.out")
 
   override def shape: FlowShape[UserRecord, UserRecordResult] = FlowShape(in, out)
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic =
-    new TimerGraphStageLogic(shape) with StageLogging with InHandler with OutHandler {
+    new TimerGraphStageLogic(shape) with StageLogging {
       type Token      = Int
       type RetryCount = Int
 
-      private case class RequestWithAttempt(userRecord: UserRecord, attempt: Int = 1)
+      private case class RequestWithAttempt(request: UserRecord, attempt: Int)
       private case class RequestWithResult(request: UserRecord, result: Try[UserRecordResult], attempt: Int)
 
-      private val retryBaseInMillis                                          = settings.retryInitialTimeout.toMillis
+      private val retryBaseInMillis                                          = retryInitialTimeout.toMillis
+      private val requestWithAttempts: mutable.Queue[RequestWithAttempt]     = mutable.Queue.empty
       private var inFlight: Int                                              = _
       private var completionState: Option[Try[Unit]]                         = _
-      private val requestWithAttempts: mutable.Queue[RequestWithAttempt]     = mutable.Queue.empty
       private var resultCallback: AsyncCallback[RequestWithResult]           = _
       private val waitingRetries: mutable.HashMap[Token, RequestWithAttempt] = mutable.HashMap.empty
       private var retryToken: Token                                          = _
-      private var producer: KinesisProducer                                  = _
 
-      private def tryToProduce(): Unit = {
+      private var producer: KinesisProducer = _
+
+      private def tryToExecute(): Unit = {
+        log.debug(s"pendingRequests = $requestWithAttempts, isAvailable(out) = ${isAvailable(out)}")
         if (requestWithAttempts.nonEmpty && isAvailable(out)) {
-          val requestWithAttempt = requestWithAttempts.dequeue()
-          producer.addUserRecord(requestWithAttempt.userRecord).toScala.onComplete {
-            case r @ Success(userRecordResult) =>
-              push(out, userRecordResult)
-              val requestWithResult = RequestWithResult(requestWithAttempt.userRecord, r, requestWithAttempt.attempt)
-              resultCallback.invoke(requestWithResult)
-            case r =>
-              val requestWithResult = RequestWithResult(requestWithAttempt.userRecord, r, requestWithAttempt.attempt)
-              resultCallback.invoke(requestWithResult)
+          log.debug("Executing PutRecords call")
+          inFlight += 1
+          val userRecord = requestWithAttempts.dequeue()
+          producer.addUserRecord(userRecord.request).toScala.onComplete { triedUserRecordResult =>
+            triedUserRecordResult match {
+              case Success(userRecordResult) =>
+                push(out, userRecordResult)
+              case _ =>
+                ()
+            }
+            val requestWithResult = RequestWithResult(userRecord.request, triedUserRecordResult, userRecord.attempt)
+            resultCallback.invoke(requestWithResult)
           }
         }
       }
@@ -70,10 +81,10 @@ class KPLFlowStage(kinesisProducerConfiguration: KinesisProducerConfiguration, s
         case RequestWithResult(_, Success(result), _) =>
           log.debug("Get record = {}", result)
           inFlight -= 1
-          tryToProduce()
+          tryToExecute()
           if (!hasBeenPulled(in)) tryPull(in)
           checkForCompletion()
-        case RequestWithResult(_, Failure(ex: UserRecordFailedException), attempt) if attempt > settings.maxRetries =>
+        case RequestWithResult(_, Failure(ex: UserRecordFailedException), attempt) if attempt > maxRetries =>
           val last = ex.getResult.getAttempts.asScala.last
           log.error("Record failed to put - {} : {}", last.getErrorCode, last.getErrorMessage)
           failStage(ex)
@@ -81,25 +92,15 @@ class KPLFlowStage(kinesisProducerConfiguration: KinesisProducerConfiguration, s
           log.debug("PutRecords call finished with partial errors; scheduling retry")
           inFlight -= 1
           waitingRetries.put(retryToken, RequestWithAttempt(error, attempt + 1))
-          scheduleOnce(
-            retryToken,
-            settings.backoffStrategy match {
-              case RetryBackoffStrategy.Exponential => scala.math.pow(retryBaseInMillis, attempt).toInt millis
-              case RetryBackoffStrategy.Lineal      => settings.retryInitialTimeout * attempt
-            }
-          )
+          scheduleOnce(retryToken, backoffStrategy match {
+            case Exponential => scala.math.pow(retryBaseInMillis, attempt).toInt millis
+            case Lineal      => retryInitialTimeout * attempt
+          })
           retryToken += 1
         case RequestWithResult(_, Failure(ex), _) =>
           log.error("Exception during put", ex)
           failStage(ex)
       }
-
-      override protected def onTimer(timerKey: Any) =
-        waitingRetries.remove(timerKey.asInstanceOf[Token]) foreach { requestWithAttempt =>
-          log.debug("New PutRecords retry attempt available")
-          requestWithAttempts.enqueue(requestWithAttempt)
-          tryToProduce()
-        }
 
       override def preStart(): Unit = {
         completionState = None
@@ -117,28 +118,44 @@ class KPLFlowStage(kinesisProducerConfiguration: KinesisProducerConfiguration, s
         log.info("Finished.")
       }
 
-      override def onUpstreamFinish(): Unit = {
-        completionState = Some(Success(()))
-        checkForCompletion()
-      }
+      override protected def onTimer(timerKey: Any) =
+        waitingRetries.remove(timerKey.asInstanceOf[Token]) foreach { requestWithAttempt =>
+          log.debug("New PutRecords retry attempt available")
+          requestWithAttempts.enqueue(requestWithAttempt)
+          tryToExecute()
+        }
 
-      override def onUpstreamFailure(ex: Throwable): Unit = {
-        completionState = Some(Failure(ex))
-        checkForCompletion()
-      }
+      setHandler(
+        in,
+        new InHandler {
 
-      override def onPush(): Unit = {
-        val userRecord = grab(in)
-        requestWithAttempts.enqueue(RequestWithAttempt(userRecord))
-        tryToProduce()
-      }
+          override def onUpstreamFinish(): Unit = {
+            completionState = Some(Success(()))
+            checkForCompletion()
+          }
 
-      override def onPull(): Unit = {
-        tryToProduce()
-        if (waitingRetries.isEmpty && !hasBeenPulled(in)) tryPull(in)
-      }
+          override def onUpstreamFailure(ex: Throwable): Unit = {
+            completionState = Some(Failure(ex))
+            checkForCompletion()
+          }
 
-      setHandlers(in, out, this)
+          override def onPush(): Unit = {
+            val userRecord = grab(in)
+            requestWithAttempts.enqueue(RequestWithAttempt(userRecord, 1))
+            tryToExecute()
+          }
+
+        }
+      )
+
+      setHandler(out, new OutHandler {
+        override def onPull(): Unit = {
+          tryToExecute()
+          if (waitingRetries.isEmpty && !hasBeenPulled(in)) tryPull(in)
+        }
+
+      })
+
     }
 
 }
