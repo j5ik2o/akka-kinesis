@@ -6,7 +6,7 @@ val commonSettings = Seq(
 )
 
 val awsSdkVersion = "1.11.226"
-val akkaVersion   = "2.5.7"
+val akkaVersion   = "2.5.9"
 
 val dependenciesCommonSettings = Seq(
   resolvers ++= Seq(
@@ -19,7 +19,7 @@ val dependenciesCommonSettings = Seq(
     "org.scalactic"     %% "scalactic"           % "3.0.4",
     "org.scalatest"     %% "scalatest"           % "3.0.4" % Test,
     "org.scalacheck"    %% "scalacheck"          % "1.13.4" % Test,
-    "org.sisioh"        %% "sisioh-config"       % "0.0.12",
+    "org.sisioh"        %% "sisioh-config"       % "0.0.15",
     "com.typesafe"      % "config"               % "1.3.1",
     "ch.qos.logback"    % "logback-classic"      % "1.2.3",
     "com.typesafe.akka" %% "akka-slf4j"          % akkaVersion,
