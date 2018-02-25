@@ -1,19 +1,22 @@
 package com.github.j5ik2o.ak.kpl
 
 import java.nio.ByteBuffer
+import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.Source
+import akka.stream.scaladsl.{ Keep, Source }
+import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import com.amazonaws.regions.Regions
-import com.amazonaws.services.kinesis.model.PutRecordsRequestEntry
-import com.amazonaws.services.kinesis.producer.KinesisProducerConfiguration
+import com.amazonaws.services.kinesis.producer.{ KinesisProducerConfiguration, UserRecord, UserRecordResult }
 import com.github.j5ik2o.ak.aws.{ AwsClientConfig, AwsKinesisClient }
 import com.github.j5ik2o.ak.kpl.dsl.{ KPLFlow, KPLFlowSettings }
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{ BeforeAndAfterAll, FreeSpecLike, Matchers }
+
+import scala.collection.JavaConverters._
 
 class KPLFlowSpec
     extends TestKit(ActorSystem("KPLFlowSpec"))
@@ -24,7 +27,7 @@ class KPLFlowSpec
 
   val region     = Regions.AP_NORTHEAST_1
   val client     = new AwsKinesisClient(AwsClientConfig(region))
-  val streamName = sys.env("KPL_STREAM_NAME")
+  val streamName = sys.env("KPL_STREAM_NAME") + UUID.randomUUID().toString
 
   override protected def beforeAll(): Unit = {
     client.createStream(streamName, 1)
@@ -48,19 +51,21 @@ class KPLFlowSpec
         .setCredentialsRefreshDelay(100)
 
       val kplFlowSettings = KPLFlowSettings.byNumberOfShards(1)
-      val probe = Source
+      val probe: TestSubscriber.Probe[UserRecordResult] = Source
         .single(
-          new PutRecordsRequestEntry().withPartitionKey(partitionKey).withData(ByteBuffer.wrap(data.getBytes()))
+          new UserRecord()
+            .withStreamName(streamName)
+            .withPartitionKey(partitionKey)
+            .withData(ByteBuffer.wrap(data.getBytes()))
         )
-        .via(KPLFlow(streamName, kinesisProducerConfiguration, kplFlowSettings))
+        .viaMat(KPLFlow(streamName, kinesisProducerConfiguration, kplFlowSettings))(Keep.left)
         .runWith(TestSink.probe)
 
       val result = probe.request(1).expectNext()
       result should not be null
       result.getShardId should not be null
       result.getSequenceNumber should not be null
-      result.getErrorCode shouldBe null
-      result.getErrorMessage shouldBe null
+      result.getAttempts.asScala.forall(_.isSuccessful) shouldBe true
     }
   }
 

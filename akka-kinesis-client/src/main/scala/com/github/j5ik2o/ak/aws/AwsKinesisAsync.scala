@@ -10,7 +10,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 
 trait AwsKinesisAsync {
 
-  import com.github.j5ik2o.ak.JavaFutureConverter._
+  import JavaFutureConverter._
 
   val underlying: AmazonKinesisAsync
 

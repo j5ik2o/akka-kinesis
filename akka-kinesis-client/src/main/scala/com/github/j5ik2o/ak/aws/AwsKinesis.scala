@@ -2,10 +2,10 @@ package com.github.j5ik2o.ak.aws
 
 import java.nio.ByteBuffer
 
-import com.amazonaws.{ AmazonWebServiceRequest, ResponseMetadata }
 import com.amazonaws.services.kinesis.AmazonKinesis
 import com.amazonaws.services.kinesis.model._
 import com.amazonaws.services.kinesis.waiters.AmazonKinesisWaiters
+import com.amazonaws.{ AmazonWebServiceRequest, ResponseMetadata }
 
 import scala.util.Try
 

@@ -7,7 +7,7 @@ import com.github.j5ik2o.ak.kpl.dsl.KPLFlowSettings.{ Exponential, Lineal, Retry
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }
 
@@ -16,21 +16,25 @@ class KPLFlowStage(kinesisProducerConfiguration: KinesisProducerConfiguration,
                    backoffStrategy: RetryBackoffStrategy,
                    retryInitialTimeout: FiniteDuration)(
     implicit ec: ExecutionContext
-) extends GraphStage[FlowShape[UserRecord, UserRecordResult]] {
+) extends GraphStageWithMaterializedValue[FlowShape[UserRecord, UserRecordResult], Future[KinesisProducer]] {
 
-  import com.github.j5ik2o.ak.JavaFutureConverter._
+  import com.github.j5ik2o.ak.aws.JavaFutureConverter._
 
   private val in  = Inlet[UserRecord]("KPLFlowStage.int")
   private val out = Outlet[UserRecordResult]("KPLFlowStage.out")
 
   override def shape: FlowShape[UserRecord, UserRecordResult] = FlowShape(in, out)
 
-  override def createLogic(inheritedAttributes: Attributes): GraphStageLogic =
-    new TimerGraphStageLogic(shape) with StageLogging {
+  override def createLogicAndMaterializedValue(
+      inheritedAttributes: Attributes
+  ): (GraphStageLogic, Future[KinesisProducer]) = {
+    val promise = Promise[KinesisProducer]()
+    val logic = new TimerGraphStageLogic(shape) with StageLogging {
       type Token      = Int
       type RetryCount = Int
 
       private case class RequestWithAttempt(request: UserRecord, attempt: Int)
+
       private case class RequestWithResult(request: UserRecord, result: Try[UserRecordResult], attempt: Int)
 
       private val retryBaseInMillis                                          = retryInitialTimeout.toMillis
@@ -107,6 +111,7 @@ class KPLFlowStage(kinesisProducerConfiguration: KinesisProducerConfiguration,
         inFlight = 0
         resultCallback = getAsyncCallback[RequestWithResult](handleResult)
         producer = new KinesisProducer(kinesisProducerConfiguration)
+        promise.success(producer)
         pull(in)
       }
 
@@ -157,5 +162,7 @@ class KPLFlowStage(kinesisProducerConfiguration: KinesisProducerConfiguration,
       })
 
     }
+    (logic, promise.future)
+  }
 
 }

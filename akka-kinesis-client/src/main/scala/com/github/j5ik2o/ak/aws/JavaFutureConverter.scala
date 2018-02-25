@@ -1,4 +1,4 @@
-package com.github.j5ik2o.ak
+package com.github.j5ik2o.ak.aws
 
 import java.util.concurrent.{ ExecutionException, Future => JavaFuture }
 
