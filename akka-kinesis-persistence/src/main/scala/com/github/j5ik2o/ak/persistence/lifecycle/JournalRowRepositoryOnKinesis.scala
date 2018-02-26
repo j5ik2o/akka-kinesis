@@ -4,8 +4,8 @@ import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{ Flow, GraphDSL, Sink, Source, Unzip, Zip }
-import akka.stream.{ ActorMaterializer, FlowShape }
+import akka.stream.scaladsl.{ Flow, GraphDSL, Keep, Sink, Source, Unzip, Zip }
+import akka.stream.{ ActorMaterializer, FlowShape, OverflowStrategy, QueueOfferResult }
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.kinesis.model.{ GetRecordsRequest, GetShardIteratorRequest, Record, ShardIteratorType }
 import com.amazonaws.services.kinesis.producer.{
@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory
 import scala.collection.JavaConverters._
 import scala.collection.{ immutable, mutable }
 import scala.concurrent.duration._
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.util.{ Failure, Success, Try }
 
 object JournalRowRepositoryOnKinesis {
@@ -37,6 +37,8 @@ object JournalRowRepositoryOnKinesis {
   type KinesisShardId        = String
   type KinesisSequenceNumber = String
 
+  private case class PrromiseWithJournalRows(promise: Promise[Unit], journalRows: Seq[JournalRow])
+
   case class KinesisShardIdWithSeqNr(kinesisShardId: KinesisShardId,
                                      kinesisSeqNr: KinesisSequenceNumber,
                                      deleted: Boolean = false)
@@ -50,7 +52,9 @@ object JournalRowRepositoryOnKinesis {
 class JournalRowRepositoryOnKinesis(streamName: String,
                                     regions: Regions,
                                     numOfShards: Int,
-                                    nextShardIteratorInterval: FiniteDuration = 3 seconds)(
+                                    nextShardIteratorInterval: FiniteDuration = 3 seconds,
+                                    bufferSize: Int = 1000,
+                                    batchSize: Int = 10)(
     implicit system: ActorSystem
 ) extends JournalRowRepository {
 
@@ -82,8 +86,8 @@ class JournalRowRepositoryOnKinesis(streamName: String,
   private def kplWithJournalRowsFlow(implicit ec: ExecutionContext) =
     Flow.fromGraph(GraphDSL.create() { implicit b =>
       import GraphDSL.Implicits._
-      val unzip = b.add(Unzip[UserRecord, Seq[JournalRow]])
-      val zip   = b.add(Zip[UserRecordResult, Seq[JournalRow]])
+      val unzip = b.add(Unzip[UserRecord, PrromiseWithJournalRows])
+      val zip   = b.add(Zip[UserRecordResult, PrromiseWithJournalRows])
       unzip.out0 ~> kplFlow ~> zip.in0
       unzip.out1 ~> zip.in1
       FlowShape(unzip.in, zip.out)
@@ -156,27 +160,47 @@ class JournalRowRepositoryOnKinesis(streamName: String,
     }
   }
 
+  import system.dispatcher
+
+  private val writeJournalRowsQueue = Source
+    .queue[PrromiseWithJournalRows](bufferSize, OverflowStrategy.dropNew)
+    .map {
+      case p @ PrromiseWithJournalRows(_, journalRows) =>
+        (toUserRecord(journalRows), p)
+    }
+    .via(kplWithJournalRowsFlow)
+    .map {
+      case (userRecordResult, PrromiseWithJournalRows(promise, _journalRows)) =>
+        if (userRecordResult.isSuccessful) {
+          _journalRows.foreach(j => putKinesisShardIdWithSeqNr(j, userRecordResult))
+          promise.success(())
+        } else {
+          val detailMessage: String = toDetailMessage(userRecordResult)
+          promise.failure(new Exception(s"occurred errors: $detailMessage"))
+        }
+    }
+    .toMat(Sink.ignore)(Keep.left)
+    .run()
+
   override def store(journalRow: JournalRow)(implicit ec: ExecutionContext): Future[Unit] =
     storeMulti(Seq(journalRow))
 
   override def storeMulti(journalRows: Seq[JournalRow])(implicit ec: ExecutionContext): Future[Unit] = {
-    Source
-      .single(journalRows)
-      .map { journalRows =>
-        (toUserRecord(journalRows), journalRows)
-      }
-      .via(kplWithJournalRowsFlow)
-      .mapAsync(1) {
-        case (userRecordResult, _journalRows) =>
-          if (userRecordResult.isSuccessful) {
-            _journalRows.foreach(j => putKinesisShardIdWithSeqNr(j, userRecordResult))
-            Future.successful(())
-          } else {
-            val detailMessage: String = toDetailMessage(userRecordResult)
-            Future.failed(new Exception(s"occurred errors: $detailMessage"))
-          }
-      }
-      .runWith(Sink.head)
+    val promise = Promise[Unit]()
+    writeJournalRowsQueue.offer(PrromiseWithJournalRows(promise, journalRows)).flatMap {
+      case QueueOfferResult.Enqueued =>
+        promise.future
+      case QueueOfferResult.Failure(t) =>
+        Future.failed(new Exception("Failed to write journal row batch", t))
+      case QueueOfferResult.Dropped =>
+        Future.failed(
+          new Exception(
+            s"Failed to enqueue journal row batch write, the queue buffer was full ($bufferSize elements) please check the jdbc-journal.bufferSize setting"
+          )
+        )
+      case QueueOfferResult.QueueClosed =>
+        Future.failed(new Exception("Failed to enqueue journal row batch write, the queue was closed"))
+    }
   }
 
   private def toDetailMessage(userRecordResult: UserRecordResult) = {
@@ -231,9 +255,9 @@ class JournalRowRepositoryOnKinesis(streamName: String,
     def go(shardIterator: String, readSize: Long, acc: Future[Seq[JournalRow]]): Future[Seq[JournalRow]] = {
       logger.debug(s"go(shardIterator = $shardIterator, readSize = $readSize")
       val _readSizeOpt = readSize match {
-        case r if r > 1000 => Some(1000)
         case 0             => None
-        case r             => Some(r.toInt)
+        case n if n > 1000 => Some(1000)
+        case n             => Some(n.toInt)
       }
       logger.debug(s"_readSizeOpt = ${_readSizeOpt}")
       _readSizeOpt
