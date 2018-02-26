@@ -88,11 +88,12 @@ val `akka-kinesis-persistence` = (project in file("akka-kinesis-persistence"))
   .settings(
     name := "akka-kinesis-persistence",
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-persistence"     % akkaVersion,
-      "com.typesafe.akka" %% "akka-persistence-tck" % akkaVersion % Test,
-      "io.circe"          %% "circe-core"           % circeVersion,
-      "io.circe"          %% "circe-generic"        % circeVersion,
-      "io.circe"          %% "circe-parser"         % circeVersion
+      "com.typesafe.akka" %% "akka-persistence"       % akkaVersion,
+      "com.typesafe.akka" %% "akka-persistence-query" % akkaVersion,
+      "com.typesafe.akka" %% "akka-persistence-tck"   % akkaVersion % Test,
+      "io.circe"          %% "circe-core"             % circeVersion,
+      "io.circe"          %% "circe-generic"          % circeVersion,
+      "io.circe"          %% "circe-parser"           % circeVersion
     )
   )
   .dependsOn(`akka-kinesis-kcl`, `akka-kinesis-kpl`)

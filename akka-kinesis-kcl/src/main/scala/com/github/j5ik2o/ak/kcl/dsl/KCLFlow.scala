@@ -5,7 +5,11 @@ import akka.stream.scaladsl.{ Flow, Source }
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB
 import com.amazonaws.services.kinesis.AmazonKinesis
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{ KinesisClientLibConfiguration, ShardPrioritization }
+import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{
+  KinesisClientLibConfiguration,
+  ShardPrioritization,
+  Worker
+}
 import com.amazonaws.services.kinesis.metrics.interfaces.IMetricsFactory
 import com.amazonaws.services.kinesis.model.Record
 import com.github.j5ik2o.ak.kcl.stage.{ CommittableRecord, KCLSourceStage }
@@ -41,7 +45,7 @@ object KCLSource {
       metricsFactory: Option[IMetricsFactory] = None,
       shardPrioritization: Option[ShardPrioritization] = None,
       checkWorkerPeriodicity: FiniteDuration = 1 seconds
-  )(implicit ec: ExecutionContext): Source[Record, NotUsed] =
+  )(implicit ec: ExecutionContext): Source[Record, Future[Worker]] =
     withoutCheckpoint(
       kinesisClientLibConfiguration,
       recordProcessorF,
@@ -64,7 +68,7 @@ object KCLSource {
       metricsFactory: Option[IMetricsFactory] = None,
       shardPrioritization: Option[ShardPrioritization] = None,
       checkWorkerPeriodicity: FiniteDuration = 1 seconds
-  )(implicit ec: ExecutionContext): Source[CommittableRecord, NotUsed] =
+  )(implicit ec: ExecutionContext): Source[CommittableRecord, Future[Worker]] =
     Source.fromGraph(
       new KCLSourceStage(
         kinesisClientLibConfiguration,

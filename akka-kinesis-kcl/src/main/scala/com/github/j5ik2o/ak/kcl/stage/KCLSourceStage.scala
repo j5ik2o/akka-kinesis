@@ -29,7 +29,7 @@ import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.{ RecordProcessor, RecordPr
 import scala.collection.JavaConverters._
 import scala.collection.immutable.Queue
 import scala.concurrent.duration.{ FiniteDuration, _ }
-import scala.concurrent.{ ExecutionContext, ExecutionContextExecutorService, Future }
+import scala.concurrent.{ ExecutionContext, ExecutionContextExecutorService, Future, Promise }
 import scala.util.control.NoStackTrace
 import scala.util.{ Failure, Success, Try }
 
@@ -105,32 +105,6 @@ object KCLSourceStage {
   }
 }
 
-class CommittableRecord(val shardId: String,
-                        val recordProcessorStartingSequenceNumber: ExtendedSequenceNumber,
-                        val millisBehindLatest: Long,
-                        val record: Record,
-                        recordProcessor: RecordProcessor,
-                        checkPointer: IRecordProcessorCheckpointer)(implicit executor: ExecutionContext) {
-
-  val sequenceNumber: String = record.getSequenceNumber
-
-  def recordProcessorShutdownReason(): Option[ShutdownReason] =
-    recordProcessor.maybeShutdownReason
-
-  def canBeCheckpointed(): Boolean =
-    recordProcessorShutdownReason().isEmpty
-
-  def checkpoint(): Future[Unit] =
-    Future(checkPointer.checkpoint(record))
-
-}
-
-object CommittableRecord {
-
-  implicit val orderBySequenceNumber: Ordering[CommittableRecord] = Ordering.by(_.sequenceNumber)
-
-}
-
 class KCLSourceStage(kinesisClientLibConfiguration: KinesisClientLibConfiguration,
                      recordProcessorF: RecordProcessorF = RecordProcessor,
                      executionContextExecutorService: Option[ExecutionContextExecutorService] = None,
@@ -140,7 +114,7 @@ class KCLSourceStage(kinesisClientLibConfiguration: KinesisClientLibConfiguratio
                      metricsFactory: Option[IMetricsFactory] = None,
                      shardPrioritization: Option[ShardPrioritization] = None,
                      checkWorkerPeriodicity: FiniteDuration = 1 seconds)(implicit ec: ExecutionContext)
-    extends GraphStage[SourceShape[CommittableRecord]] {
+    extends GraphStageWithMaterializedValue[SourceShape[CommittableRecord], Future[Worker]] {
 
   private val out: Outlet[CommittableRecord] = Outlet("KCLSource.out")
 
@@ -151,8 +125,9 @@ class KCLSourceStage(kinesisClientLibConfiguration: KinesisClientLibConfiguratio
                                           onShutdownCallback: AsyncCallback[ShutdownInput]): IRecordProcessorFactory =
     () => RecordProcessor(onInitializeCallback, onRecordCallback, onShutdownCallback)
 
-  override def createLogic(inheritedAttributes: Attributes): GraphStageLogic =
-    new TimerGraphStageLogic(shape) with StageLogging {
+  override def createLogicAndMaterializedValue(inheritedAttributes: Attributes): (GraphStageLogic, Future[Worker]) = {
+    val promise = Promise[Worker]()
+    val logic = new TimerGraphStageLogic(shape) with StageLogging {
 
       private var worker: Worker = _
 
@@ -172,7 +147,9 @@ class KCLSourceStage(kinesisClientLibConfiguration: KinesisClientLibConfiguratio
       private val onShutdownCallback: AsyncCallback[ShutdownInput] = getAsyncCallback { shutdownInput =>
         log.debug("shutdownInput.getShutdownReason = {}", shutdownInput.getShutdownReason)
         if (shutdownInput.getShutdownReason == ShutdownReason.TERMINATE) {
-          Try { shutdownInput.getCheckpointer.checkpoint() } match {
+          Try {
+            shutdownInput.getCheckpointer.checkpoint()
+          } match {
             case Success(_) =>
               log.debug("when shutdown, checkpoint is success!")
             case Failure(ex: Throwable) =>
@@ -208,22 +185,28 @@ class KCLSourceStage(kinesisClientLibConfiguration: KinesisClientLibConfiguratio
       }
 
       override def preStart(): Unit = {
-        worker = new Worker.Builder()
-          .recordProcessorFactory(
-            newRecordProcessorFactory(onInitializeCallback, onRecordSetCallback, onShutdownCallback)
-          )
-          .config(kinesisClientLibConfiguration)
-          .execService(executionContextExecutorService.orNull)
-          .kinesisClient(kinesisClient.orNull)
-          .dynamoDBClient(dynamoDBClient.orNull)
-          .cloudWatchClient(cloudWatchClient.orNull)
-          .metricsFactory(metricsFactory.orNull)
-          .shardPrioritization(shardPrioritization.orNull)
-          .build()
-
-        log.info(s"Created Worker instance {} of application {}", worker, worker.getApplicationName)
-        schedulePeriodically("check-worker-shutdown", checkWorkerPeriodicity)
-        ec.execute(worker)
+        try {
+          worker = new Worker.Builder()
+            .recordProcessorFactory(
+              newRecordProcessorFactory(onInitializeCallback, onRecordSetCallback, onShutdownCallback)
+            )
+            .config(kinesisClientLibConfiguration)
+            .execService(executionContextExecutorService.orNull)
+            .kinesisClient(kinesisClient.orNull)
+            .dynamoDBClient(dynamoDBClient.orNull)
+            .cloudWatchClient(cloudWatchClient.orNull)
+            .metricsFactory(metricsFactory.orNull)
+            .shardPrioritization(shardPrioritization.orNull)
+            .build()
+          log.info(s"Created Worker instance {} of application {}", worker, worker.getApplicationName)
+          schedulePeriodically("check-worker-shutdown", checkWorkerPeriodicity)
+          ec.execute(worker)
+          promise.success(worker)
+        } catch {
+          case ex: Exception =>
+            promise.failure(ex)
+            throw ex
+        }
       }
 
       override def postStop(): Unit = {
@@ -237,5 +220,6 @@ class KCLSourceStage(kinesisClientLibConfiguration: KinesisClientLibConfiguratio
       })
 
     }
-
+    (logic, promise.future)
+  }
 }

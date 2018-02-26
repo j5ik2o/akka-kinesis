@@ -1,6 +1,7 @@
 package com.github.j5ik2o.ak.persistence.lifecycle
 
 import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{ Flow, GraphDSL, Sink, Source, Unzip, Zip }
@@ -20,6 +21,7 @@ import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
 import scala.collection.{ immutable, mutable }
+import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
 
@@ -35,7 +37,9 @@ object JournalRowRepositoryOnKinesis {
   type KinesisShardId        = String
   type KinesisSequenceNumber = String
 
-  case class KinesisShardIdWithSeqNr(kinesisShardId: KinesisShardId, kinesisSeqNr: KinesisSequenceNumber)
+  case class KinesisShardIdWithSeqNr(kinesisShardId: KinesisShardId,
+                                     kinesisSeqNr: KinesisSequenceNumber,
+                                     deleted: Boolean = false)
 
   case class KinesisShardIdWithSeqNrRange(kinesisShardId: KinesisShardId,
                                           fromKinesisSeqNr: KinesisSequenceNumber,
@@ -43,7 +47,10 @@ object JournalRowRepositoryOnKinesis {
 
 }
 
-class JournalRowRepositoryOnKinesis(streamName: String, regions: Regions, numOfShards: Int)(
+class JournalRowRepositoryOnKinesis(streamName: String,
+                                    regions: Regions,
+                                    numOfShards: Int,
+                                    nextShardIteratorInterval: FiniteDuration = 3 seconds)(
     implicit system: ActorSystem
 ) extends JournalRowRepository {
 
@@ -60,8 +67,6 @@ class JournalRowRepositoryOnKinesis(streamName: String, regions: Regions, numOfS
     : mutable.Map[AkkaPersistenceId, Map[AkkaSequenceNumber, KinesisShardIdWithSeqNr]] = lruCache(CACHE_SIZE)
 
   private val awsKinesisClient = new AwsKinesisClient(AwsClientConfig(regions))
-
-  private val lastSeqNrs: mutable.Map[AkkaPersistenceId, AkkaSequenceNumber] = lruCache(CACHE_SIZE)
 
   private val deletions: mutable.Map[AkkaPersistenceId, AkkaSequenceNumber] = lruCache(CACHE_SIZE)
 
@@ -84,11 +89,10 @@ class JournalRowRepositoryOnKinesis(streamName: String, regions: Regions, numOfS
       FlowShape(unzip.in, zip.out)
     })
 
-  private def putLastSeqNr(journalRow: JournalRow): lastSeqNrs.type = {
-    lastSeqNrs += (journalRow.id.persistenceId -> journalRow.id.sequenceNr)
-  }
-
-  private def putKinesisShardIdWithSeqNr(journalRow: JournalRow, userRecordResult: UserRecordResult) = {
+  private def putKinesisShardIdWithSeqNr(
+      journalRow: JournalRow,
+      userRecordResult: UserRecordResult
+  ): Option[Map[AkkaSequenceNumber, KinesisShardIdWithSeqNr]] = {
     val values = kinesisShardIdWithSeqNrs.getOrElseUpdate(journalRow.id.persistenceId, Map.empty)
     kinesisShardIdWithSeqNrs.put(
       journalRow.id.persistenceId,
@@ -108,19 +112,14 @@ class JournalRowRepositoryOnKinesis(streamName: String, regions: Regions, numOfS
     KinesisShardIdWithSeqNrRange(kinesisShardId, kinesisMinSeqNr, kinesisMaxSeqNr)
   }
 
-  private def toUserRecord(journalRow: JournalRow): UserRecord = {
-    toUserRecord(Seq(journalRow))
-  }
-
   private def toUserRecord(journalRows: Seq[JournalRow]): UserRecord = {
-    val messageAsJsonString = journalRows.asJson.noSpaces
-    new UserRecord(streamName,
-                   journalRows.head.id.persistenceId,
-                   ByteBuffer.wrap(messageAsJsonString.getBytes("UTF-8")))
+    def encodeJournalRows(journalRows: Seq[JournalRow]) =
+      ByteBuffer.wrap(journalRows.asJson.noSpaces.getBytes(StandardCharsets.UTF_8))
+    new UserRecord(streamName, journalRows.head.id.persistenceId, encodeJournalRows(journalRows))
   }
 
   private def toJournalRowsTry(record: Record): Try[Seq[JournalRow]] = {
-    parse(new String(record.getData.array(), "UTF-8")) match {
+    parse(new String(record.getData.array(), StandardCharsets.UTF_8)) match {
       case Right(parseResult) =>
         parseResult.as[Seq[JournalRow]] match {
           case Right(journalRows) =>
@@ -143,26 +142,22 @@ class JournalRowRepositoryOnKinesis(streamName: String, regions: Regions, numOfS
     }
   }
 
-  override def store(journalRow: JournalRow)(implicit ec: ExecutionContext): Future[Unit] = {
-    Source
-      .single(journalRow)
-      .map { journalRow =>
-        (toUserRecord(journalRow), Seq(journalRow))
+  private def resolveFilteredJournalRows(journalRows: Seq[JournalRow],
+                                         fromSequenceNr: AkkaSequenceNumber,
+                                         toSequenceNr: AkkaSequenceNumber): Future[Seq[JournalRow]] = {
+    Future.successful {
+      journalRows.filter { journalRow =>
+        val toSeqNrDeletedOpt = deletions.get(journalRow.id.persistenceId)
+        fromSequenceNr <= journalRow.id.sequenceNr && journalRow.id.sequenceNr <= toSequenceNr && toSeqNrDeletedOpt
+          .fold(
+            true
+          )(_ < journalRow.id.sequenceNr)
       }
-      .via(kplWithJournalRowsFlow)
-      .mapAsync(1) {
-        case (userRecordResult, Seq(_journalRow)) =>
-          if (userRecordResult.isSuccessful) {
-            putLastSeqNr(_journalRow)
-            putKinesisShardIdWithSeqNr(_journalRow, userRecordResult)
-            Future.successful(())
-          } else {
-            val detailMessage: String = toDetailMessage(userRecordResult)
-            Future.failed(new Exception(s"occurred errors: $detailMessage"))
-          }
-      }
-      .runWith(Sink.head)
+    }
   }
+
+  override def store(journalRow: JournalRow)(implicit ec: ExecutionContext): Future[Unit] =
+    storeMulti(Seq(journalRow))
 
   override def storeMulti(journalRows: Seq[JournalRow])(implicit ec: ExecutionContext): Future[Unit] = {
     Source
@@ -174,7 +169,6 @@ class JournalRowRepositoryOnKinesis(streamName: String, regions: Regions, numOfS
       .mapAsync(1) {
         case (userRecordResult, _journalRows) =>
           if (userRecordResult.isSuccessful) {
-            _journalRows.foreach(putLastSeqNr)
             _journalRows.foreach(j => putKinesisShardIdWithSeqNr(j, userRecordResult))
             Future.successful(())
           } else {
@@ -199,12 +193,20 @@ class JournalRowRepositoryOnKinesis(streamName: String, regions: Regions, numOfS
       implicit ec: ExecutionContext
   ): Future[Option[AkkaSequenceNumber]] =
     Future.successful {
-      lastSeqNrs.get(persistenceId).filter(_ > fromSequenceNr)
+      kinesisShardIdWithSeqNrs.get(persistenceId).flatMap { values =>
+        values.filter(_._1 > fromSequenceNr).toList match {
+          case Nil =>
+            None
+          case seq =>
+            Some(seq.maxBy(_._1)._1)
+        }
+      }
     }
 
   override def deleteByPersistenceIdWithToSeqNr(persistenceId: AkkaPersistenceId, toSequenceNr: AkkaSequenceNumber)(
       implicit ec: ExecutionContext
   ): Future[Unit] = Future.successful {
+
     deletions.put(persistenceId, toSequenceNr)
   }
 
@@ -212,7 +214,7 @@ class JournalRowRepositoryOnKinesis(streamName: String, regions: Regions, numOfS
       persistenceId: AkkaPersistenceId,
       fromSequenceNr: AkkaSequenceNumber,
       toSequenceNr: AkkaSequenceNumber,
-      max: AkkaSequenceNumber
+      max: Long
   )(implicit ec: ExecutionContext): Future[immutable.Seq[JournalRow]] = {
     logger.debug(s"resolveByPersistenceIdWithFromSeqNrWithMax($persistenceId, $fromSequenceNr, $toSequenceNr)")
     val KinesisShardIdWithSeqNrRange(kinesisShardId, kinesisMinSeqNr, kinesisMaxSeqNr) =
@@ -240,31 +242,20 @@ class JournalRowRepositoryOnKinesis(streamName: String, regions: Regions, numOfS
           logger.debug(s"request = $request")
           for {
             recordResponse <- awsKinesisClient.getRecordsAsync(request)
-            journalRows <- if (Option(recordResponse.getRecords).isEmpty) Future.successful(Seq.empty)
-            else {
+            journalRows <- if (Option(recordResponse.getRecords).isEmpty)
+              Future.successful(Seq.empty)
+            else
               for {
-                journalRows <- Future.fromTry(toJournalRowsTry(recordResponse.getRecords.asScala))
-                filteredJournalRows <- Future.successful {
-                  journalRows.filter { journalRow =>
-                    val toSeqNrDeletedOpt = deletions.get(journalRow.id.persistenceId)
-                    fromSequenceNr <= journalRow.id.sequenceNr && journalRow.id.sequenceNr <= toSequenceNr && toSeqNrDeletedOpt
-                      .fold(
-                        true
-                      )(_ < journalRow.id.sequenceNr)
-                  }.toVector
-                }
+                journalRows         <- Future.fromTry(toJournalRowsTry(recordResponse.getRecords.asScala))
+                filteredJournalRows <- resolveFilteredJournalRows(journalRows, fromSequenceNr, toSequenceNr)
               } yield filteredJournalRows
-            }
-            result <- if (journalRows.exists(_.id.sequenceNr == toSequenceNr)) {
+            result <- if (journalRows.exists(_.id.sequenceNr == toSequenceNr))
               acc.map(_ ++ journalRows.splitAt(_readSize)._1)
-            } else if (Option(recordResponse.getNextShardIterator).nonEmpty && journalRows.nonEmpty) {
-              logger.debug("case-2")
-              Thread.sleep(5 * 1000)
+            else if (Option(recordResponse.getNextShardIterator).nonEmpty && journalRows.nonEmpty) {
+              Thread.sleep(nextShardIteratorInterval.toMillis)
               go(recordResponse.getNextShardIterator, readSize - journalRows.size, acc)
-            } else {
-              logger.debug("case-3")
+            } else
               acc.map(_ ++ journalRows)
-            }
           } yield result
         }
         .getOrElse(acc)
