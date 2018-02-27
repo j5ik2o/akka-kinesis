@@ -8,8 +8,10 @@ import com.typesafe.config.Config
 
 class KinesisReadJournalProvider(system: ExtendedActorSystem, config: Config) extends ReadJournalProvider {
 
-  override def scaladslReadJournal(): scaladsl.ReadJournal = new KinesisScalaReadJournal(config)(system)
+  private def kinesisScalaReadJournal = new KinesisScalaReadJournal(config)(system)
 
-  override def javadslReadJournal(): javadsl.ReadJournal = new KinesisJavaReadJournal(config, system)
+  override def scaladslReadJournal(): scaladsl.ReadJournal = kinesisScalaReadJournal
+
+  override def javadslReadJournal(): javadsl.ReadJournal = new KinesisJavaReadJournal(kinesisScalaReadJournal)
 
 }
