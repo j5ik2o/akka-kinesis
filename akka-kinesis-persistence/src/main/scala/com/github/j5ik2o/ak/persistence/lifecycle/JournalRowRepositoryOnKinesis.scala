@@ -67,10 +67,10 @@ class JournalRowRepositoryOnKinesis(streamName: String,
 
   private implicit val mat = ActorMaterializer()
 
+  private val awsKinesisClient = new AwsKinesisClient(AwsClientConfig(regions))
+
   private val kinesisShardIdWithSeqNrs
     : mutable.Map[AkkaPersistenceId, Map[AkkaSequenceNumber, KinesisShardIdWithSeqNr]] = lruCache(CACHE_SIZE)
-
-  private val awsKinesisClient = new AwsKinesisClient(AwsClientConfig(regions))
 
   private val deletions: mutable.Map[AkkaPersistenceId, AkkaSequenceNumber] = lruCache(CACHE_SIZE)
 
