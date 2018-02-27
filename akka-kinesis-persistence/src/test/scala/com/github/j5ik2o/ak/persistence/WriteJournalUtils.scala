@@ -1,8 +1,8 @@
 package akka.persistence.journal
 
 import akka.actor.ActorRef
-import akka.persistence.JournalProtocol.{ WriteMessages, WriteMessagesSuccessful }
-import akka.persistence.{ AtomicWrite, Persistence, PersistentRepr }
+import akka.persistence.JournalProtocol.{ WriteMessageSuccess, WriteMessages, WriteMessagesSuccessful }
+import akka.persistence.{ AtomicWrite, Persistence, PersistentImpl, PersistentRepr }
 import akka.testkit.TestProbe
 
 class WriteJournalUtils(extension: Persistence) {
@@ -17,8 +17,10 @@ class WriteJournalUtils(extension: Persistence) {
   def expectMsg(probe: TestProbe, msg: Any) =
     probe.expectMsg(WriteMessagesSuccessful)
 
-  def expectWriteMessagesSuccessful(probe: TestProbe) =
+  def expectWriteMessagesSuccessful(probe: TestProbe, numOfMessages: Int) = {
     expectMsg(probe, WriteMessagesSuccessful)
+    probe.receiveN(numOfMessages)
+  }
 
   def writeMessages(fromSnr: Int, toSnr: Int, pid: String, sender: ActorRef, writerUuid: String): Unit = {
 
