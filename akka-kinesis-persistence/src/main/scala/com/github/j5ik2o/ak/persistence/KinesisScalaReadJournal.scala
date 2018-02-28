@@ -4,25 +4,32 @@ import java.nio.charset.StandardCharsets
 
 import akka.NotUsed
 import akka.actor.{ Cancellable, ExtendedActorSystem }
-import akka.persistence.{ Persistence, PersistentRepr }
 import akka.persistence.journal.EventAdapters
 import akka.persistence.query.scaladsl._
 import akka.persistence.query.{ EventEnvelope, Offset, Sequence }
+import akka.persistence.{ Persistence, PersistentRepr }
 import akka.serialization.{ Serialization, SerializationExtension }
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{ Flow, Sink, Source }
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.regions.Regions
+import com.amazonaws.services.dynamodbv2.{ AmazonDynamoDBAsync, AmazonDynamoDBAsyncClientBuilder }
+import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{ KinesisClientLibConfiguration, Worker }
+import com.amazonaws.services.kinesis.clientlibrary.types.{ InitializationInput, ShutdownInput }
+import com.amazonaws.services.kinesis.metrics.impl.NullMetricsFactory
 import com.amazonaws.services.kinesis.model._
 import com.github.j5ik2o.ak.aws.{ AwsClientConfig, AwsKinesisClient }
+import com.github.j5ik2o.ak.kcl.dsl.KCLSource
 import com.github.j5ik2o.ak.persistence.model.JournalRow
 import com.github.j5ik2o.ak.persistence.serialization.{ ByteArrayJournalSerializer, FlowPersistentReprSerializer }
 import com.typesafe.config.Config
 
 import scala.collection.JavaConverters._
-import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.{ Failure, Success, Try }
-import scala.concurrent.duration._
 import scala.collection.immutable._
+import scala.concurrent.duration._
+import scala.concurrent.{ ExecutionContext, Future, Promise }
+import scala.util.{ Failure, Success, Try }
 
 class KinesisScalaReadJournal(config: Config)(implicit val system: ExtendedActorSystem)
     extends ReadJournal
@@ -72,6 +79,14 @@ class KinesisScalaReadJournal(config: Config)(implicit val system: ExtendedActor
 
   private val shardIteratorType = ShardIteratorType.TRIM_HORIZON
   private val awsKinesisClient  = new AwsKinesisClient(AwsClientConfig(regions))
+  protected lazy val awsDynamoDBClient: AmazonDynamoDBAsync = AmazonDynamoDBAsyncClientBuilder
+    .standard()
+    .withRegion(regions)
+    .withCredentials(DefaultAWSCredentialsProviderChain.getInstance())
+//    .withEndpointConfiguration(
+//      new EndpointConfiguration(s"http://127.0.0.1:$dynamoDBPort", _region)
+//    )
+    .build()
 
   private val delaySource: Source[Int, Cancellable] =
     Source.tick(refreshInterval, 0.seconds, 0).take(1)
@@ -168,23 +183,16 @@ class KinesisScalaReadJournal(config: Config)(implicit val system: ExtendedActor
         new GetRecordsRequest().withShardIterator(result.getShardIterator)
       }
       .via(getRecordsFlow)
-      .map { recordsResult =>
+      .mapConcat { recordsResult =>
         recordsResult.getRecords.asScala.filter { v =>
           v.getPartitionKey == persistenceId
         }.toVector
       }
-      .mapAsync(1) { records =>
-        val js = records.foldLeft(Try(Seq.empty[JournalRow])) {
-          case (resultTry, record) =>
-            for {
-              r <- resultTry
-              e <- toJournalRowsTry(record)
-            } yield r ++ e
-        }
-        Future.fromTry(js)
+      .mapAsync(1) { record =>
+        Future.fromTry(toJournalRowsTry(record))
       }
-      .mapConcat { r =>
-        r.filter { v =>
+      .mapConcat { journalRows =>
+        journalRows.filter { v =>
           fromSequenceNr <= v.id.sequenceNr && v.id.sequenceNr <= toSequenceNr
         }.toVector
       }
@@ -235,4 +243,30 @@ class KinesisScalaReadJournal(config: Config)(implicit val system: ExtendedActor
       }
       .mapConcat(identity)
   }
+
+  def eventsByKCL(
+      config: KinesisClientLibConfiguration,
+  ): Source[EventEnvelope, Future[Worker]] = {
+    KCLSource(config,
+              kinesisClient = Some(awsKinesisClient.underlying),
+              dynamoDBClient = Some(awsDynamoDBClient),
+              metricsFactory = Some(new NullMetricsFactory))
+      .mapAsync(1) { record =>
+        Future.fromTry(toJournalRowsTry(record))
+      }
+      .mapConcat(_.toVector)
+      .via(serializer.deserializeFlow)
+      .mapAsync(1)(Future.fromTry)
+      .map(_.persistentRepr)
+      .mapConcat(adaptEvents)
+      .map { persistentRepr =>
+        EventEnvelope(
+          Offset.sequence(persistentRepr.sequenceNr),
+          persistentRepr.persistenceId,
+          persistentRepr.sequenceNr,
+          persistentRepr.payload
+        )
+      }
+  }
+
 }

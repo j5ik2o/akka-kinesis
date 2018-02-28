@@ -24,7 +24,7 @@ import com.amazonaws.services.kinesis.clientlibrary.types.{
 }
 import com.amazonaws.services.kinesis.metrics.interfaces.IMetricsFactory
 import com.amazonaws.services.kinesis.model.Record
-import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.{ RecordProcessor, RecordProcessorF, RecordSet }
+import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.{ KCLMaterializedValue, RecordProcessorF, RecordSet }
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.Queue
@@ -38,6 +38,8 @@ sealed trait KinesisWorkerSourceError extends NoStackTrace
 case object WorkerUnexpectedShutdown extends KinesisWorkerSourceError
 
 object KCLSourceStage {
+
+  case class KCLMaterializedValue(workerFuture: Future[Worker], initializationInputFuture: InitializationInput)
 
   type RecordProcessorF =
     (AsyncCallback[InitializationInput], AsyncCallback[RecordSet], AsyncCallback[ShutdownInput]) => IRecordProcessor
@@ -56,9 +58,13 @@ object KCLSourceStage {
       else Try { recordProcessorCheckPointer.checkpoint(records.last) }
   }
 
-  case class RecordProcessor(onInitializeCallback: AsyncCallback[InitializationInput],
-                             onRecordsCallback: AsyncCallback[RecordSet],
-                             onShutdownCallback: AsyncCallback[ShutdownInput])
+  def newRecordProcessor: RecordProcessorF =
+    (onInitializeCallback, onRecordsCallback, onShutdownCallback) =>
+      new RecordProcessor(onInitializeCallback, onRecordsCallback, onShutdownCallback)
+
+  class RecordProcessor(onInitializeCallback: AsyncCallback[InitializationInput],
+                        onRecordsCallback: AsyncCallback[RecordSet],
+                        onShutdownCallback: AsyncCallback[ShutdownInput])
       extends IRecordProcessor {
     private[this] var _shardId: String                                         = _
     private[this] var _extendedSequenceNumber: ExtendedSequenceNumber          = _
@@ -106,14 +112,15 @@ object KCLSourceStage {
 }
 
 class KCLSourceStage(kinesisClientLibConfiguration: KinesisClientLibConfiguration,
-                     recordProcessorF: RecordProcessorF = RecordProcessor,
+                     recordProcessorF: RecordProcessorF = KCLSourceStage.newRecordProcessor,
                      executionContextExecutorService: Option[ExecutionContextExecutorService] = None,
                      kinesisClient: Option[AmazonKinesis] = None,
                      dynamoDBClient: Option[AmazonDynamoDB] = None,
                      cloudWatchClient: Option[AmazonCloudWatch] = None,
                      metricsFactory: Option[IMetricsFactory] = None,
                      shardPrioritization: Option[ShardPrioritization] = None,
-                     checkWorkerPeriodicity: FiniteDuration = 1 seconds)(implicit ec: ExecutionContext)
+                     checkWorkerPeriodicity: FiniteDuration = 1 seconds,
+)(implicit ec: ExecutionContext)
     extends GraphStageWithMaterializedValue[SourceShape[CommittableRecord], Future[Worker]] {
 
   private val out: Outlet[CommittableRecord] = Outlet("KCLSource.out")
@@ -123,10 +130,12 @@ class KCLSourceStage(kinesisClientLibConfiguration: KinesisClientLibConfiguratio
   protected def newRecordProcessorFactory(onInitializeCallback: AsyncCallback[InitializationInput],
                                           onRecordCallback: AsyncCallback[RecordSet],
                                           onShutdownCallback: AsyncCallback[ShutdownInput]): IRecordProcessorFactory =
-    () => RecordProcessor(onInitializeCallback, onRecordCallback, onShutdownCallback)
+    () => KCLSourceStage.newRecordProcessor(onInitializeCallback, onRecordCallback, onShutdownCallback)
 
-  override def createLogicAndMaterializedValue(inheritedAttributes: Attributes): (GraphStageLogic, Future[Worker]) = {
-    val promise = Promise[Worker]()
+  override def createLogicAndMaterializedValue(
+      inheritedAttributes: Attributes
+  ): (GraphStageLogic, Future[Worker]) = {
+    val workerPromise = Promise[Worker]()
     val logic = new TimerGraphStageLogic(shape) with StageLogging {
 
       private var worker: Worker = _
@@ -201,10 +210,10 @@ class KCLSourceStage(kinesisClientLibConfiguration: KinesisClientLibConfiguratio
           log.info(s"Created Worker instance {} of application {}", worker, worker.getApplicationName)
           schedulePeriodically("check-worker-shutdown", checkWorkerPeriodicity)
           ec.execute(worker)
-          promise.success(worker)
+          workerPromise.success(worker)
         } catch {
           case ex: Exception =>
-            promise.failure(ex)
+            workerPromise.failure(ex)
             throw ex
         }
       }
@@ -220,6 +229,6 @@ class KCLSourceStage(kinesisClientLibConfiguration: KinesisClientLibConfiguratio
       })
 
     }
-    (logic, promise.future)
+    (logic, workerPromise.future)
   }
 }

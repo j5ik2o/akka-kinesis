@@ -12,10 +12,10 @@
         <appender-ref ref="STDOUT" />
     </appender>
 
-    <logger name="com.github.j5ik2o.ak.persistence" level="DEBUG">
+    <logger name="aeb" level="DEBUG">
     </logger>
 
-    <root level="DEBUG">
+    <root level="INFO">
         <appender-ref ref="ASYNCSTDOUT" />
     </root>
 

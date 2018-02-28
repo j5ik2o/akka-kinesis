@@ -13,13 +13,21 @@ class AkkaStreamExampleSpec extends TestKit(ActorSystem("AkkaStreamExampleSpec")
   implicit val mat = ActorMaterializer()
   "stream" - {
     "iterator" in {
-      val result = Source
-        .single(Seq(1, 2, 3))
+
+      Source
+        .single(1)
+        .flatMapConcat { _ =>
+          Source(Vector(1, 2, 3, 4, 5))
+        }
+        .map(_ * 2)
+        .runForeach(println)
+
+      /*      val result = Source(Vector(Seq(1, 2, 3), Seq(4, 5, 6)))
         .mapConcat { e =>
           e.toVector
         }
-        .runWith(Sink.seq)
-      println(result.futureValue)
+        .runWith(Sink.seq)*/
+      //println(result.futureValue)
 //      val r = Source
 //        .repeat(0)
 //        .flatMapConcat { _ =>

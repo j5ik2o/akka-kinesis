@@ -59,7 +59,8 @@ val `akka-kinesis-kpl` = (project in file("akka-kinesis-kpl"))
       "com.amazonaws" % "amazon-kinesis-producer" % "0.12.8" excludeAll (ExclusionRule("com.fasterxml.jackson.core"), ExclusionRule(
         "com.fasterxml.jackson.dataformat"
       ))
-    )
+    ),
+    parallelExecution in Test := false
   )
   .dependsOn(`akka-kinesis-client`)
 
@@ -79,7 +80,8 @@ val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
       "com.amazonaws" % "aws-java-sdk-dynamodb" % awsSdkVersion excludeAll (ExclusionRule("com.fasterxml.jackson.core"), ExclusionRule(
         "com.fasterxml.jackson.dataformat"
       ))
-    )
+    ),
+    parallelExecution in Test := false
   )
   .dependsOn(`akka-kinesis-client`)
 
@@ -94,7 +96,8 @@ val `akka-kinesis-persistence` = (project in file("akka-kinesis-persistence"))
       "io.circe"          %% "circe-core"             % circeVersion,
       "io.circe"          %% "circe-generic"          % circeVersion,
       "io.circe"          %% "circe-parser"           % circeVersion
-    )
+    ),
+    parallelExecution in Test := false
   )
   .dependsOn(`akka-kinesis-kcl`, `akka-kinesis-kpl`)
 
