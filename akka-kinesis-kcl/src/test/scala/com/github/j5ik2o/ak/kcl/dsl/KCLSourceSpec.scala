@@ -20,18 +20,16 @@ import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{
 import com.amazonaws.services.kinesis.metrics.impl.NullMetricsFactory
 import com.amazonaws.services.kinesis.model.PutRecordRequest
 import com.github.j5ik2o.ak.aws.{ AwsClientConfig, AwsKinesisClient }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.prop.PropertyChecks
+import org.scalatest.freespec.AnyFreeSpecLike
+import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
-import org.scalatest.{ BeforeAndAfterAll, FreeSpecLike, Matchers }
-
-import scala.util.Try
 
 class KCLSourceSpec
     extends TestKit(ActorSystem("KPLFlowSpec"))
-    with FreeSpecLike
+    with AnyFreeSpecLike
     with BeforeAndAfterAll
-    with PropertyChecks
     with Matchers
     with ScalaFutures {
 

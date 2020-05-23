@@ -24,7 +24,7 @@ import com.amazonaws.services.kinesis.clientlibrary.types.{
 }
 import com.amazonaws.services.kinesis.metrics.interfaces.IMetricsFactory
 import com.amazonaws.services.kinesis.model.Record
-import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.{ KCLMaterializedValue, RecordProcessorF, RecordSet }
+import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.{ KCLMaterializedValue, RecordProcessorF, RecordSet, WorkerF }
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.Queue
@@ -44,6 +44,16 @@ object KCLSourceStage {
   type RecordProcessorF =
     (AsyncCallback[InitializationInput], AsyncCallback[RecordSet], AsyncCallback[ShutdownInput]) => IRecordProcessor
 
+  type WorkerF =
+    (IRecordProcessorFactory,
+     KinesisClientLibConfiguration,
+     Option[ExecutionContextExecutorService],
+     Option[AmazonKinesis],
+     Option[AmazonDynamoDB],
+     Option[AmazonCloudWatch],
+     Option[IMetricsFactory],
+     Option[ShardPrioritization]) => Worker
+
   case class RecordSet(recordProcessor: RecordProcessor,
                        shardId: String,
                        extendedSequenceNumber: ExtendedSequenceNumber,
@@ -58,9 +68,31 @@ object KCLSourceStage {
       else Try { recordProcessorCheckPointer.checkpoint(records.last) }
   }
 
-  def newRecordProcessor: RecordProcessorF =
+  def newDefaultRecordProcessor: RecordProcessorF =
     (onInitializeCallback, onRecordsCallback, onShutdownCallback) =>
       new RecordProcessor(onInitializeCallback, onRecordsCallback, onShutdownCallback)
+
+  def newDefaultWorker: WorkerF =
+    (newRecordProcessorFactory,
+     kinesisClientLibConfiguration,
+     executionContextExecutorService,
+     kinesisClient,
+     dynamoDBClient,
+     cloudWatchClient,
+     metricsFactory,
+     shardPrioritization) =>
+      new Worker.Builder()
+        .recordProcessorFactory(
+          newRecordProcessorFactory
+        )
+        .config(kinesisClientLibConfiguration)
+        .execService(executionContextExecutorService.orNull)
+        .kinesisClient(kinesisClient.orNull)
+        .dynamoDBClient(dynamoDBClient.orNull)
+        .cloudWatchClient(cloudWatchClient.orNull)
+        .metricsFactory(metricsFactory.orNull)
+        .shardPrioritization(shardPrioritization.orNull)
+        .build()
 
   class RecordProcessor(onInitializeCallback: AsyncCallback[InitializationInput],
                         onRecordsCallback: AsyncCallback[RecordSet],
@@ -81,7 +113,6 @@ object KCLSourceStage {
       _extendedSequenceNumber = initializationInput.getExtendedSequenceNumber
       _pendingCheckpointSequenceNumber = initializationInput.getPendingCheckpointSequenceNumber
       onInitializeCallback.invoke(initializationInput)
-
     }
 
     override def processRecords(processRecordsInput: ProcessRecordsInput): Unit = {
@@ -112,7 +143,6 @@ object KCLSourceStage {
 }
 
 class KCLSourceStage(kinesisClientLibConfiguration: KinesisClientLibConfiguration,
-                     recordProcessorF: RecordProcessorF = KCLSourceStage.newRecordProcessor,
                      executionContextExecutorService: Option[ExecutionContextExecutorService] = None,
                      kinesisClient: Option[AmazonKinesis] = None,
                      dynamoDBClient: Option[AmazonDynamoDB] = None,
@@ -120,7 +150,8 @@ class KCLSourceStage(kinesisClientLibConfiguration: KinesisClientLibConfiguratio
                      metricsFactory: Option[IMetricsFactory] = None,
                      shardPrioritization: Option[ShardPrioritization] = None,
                      checkWorkerPeriodicity: FiniteDuration = 1 seconds,
-)(implicit ec: ExecutionContext)
+                     recordProcessorF: RecordProcessorF = KCLSourceStage.newDefaultRecordProcessor,
+                     workerF: WorkerF = KCLSourceStage.newDefaultWorker)(implicit ec: ExecutionContext)
     extends GraphStageWithMaterializedValue[SourceShape[CommittableRecord], Future[Worker]] {
 
   private val out: Outlet[CommittableRecord] = Outlet("KCLSource.out")
@@ -130,7 +161,7 @@ class KCLSourceStage(kinesisClientLibConfiguration: KinesisClientLibConfiguratio
   protected def newRecordProcessorFactory(onInitializeCallback: AsyncCallback[InitializationInput],
                                           onRecordCallback: AsyncCallback[RecordSet],
                                           onShutdownCallback: AsyncCallback[ShutdownInput]): IRecordProcessorFactory =
-    () => KCLSourceStage.newRecordProcessor(onInitializeCallback, onRecordCallback, onShutdownCallback)
+    () => recordProcessorF(onInitializeCallback, onRecordCallback, onShutdownCallback)
 
   override def createLogicAndMaterializedValue(
       inheritedAttributes: Attributes
@@ -195,18 +226,16 @@ class KCLSourceStage(kinesisClientLibConfiguration: KinesisClientLibConfiguratio
 
       override def preStart(): Unit = {
         try {
-          worker = new Worker.Builder()
-            .recordProcessorFactory(
-              newRecordProcessorFactory(onInitializeCallback, onRecordSetCallback, onShutdownCallback)
-            )
-            .config(kinesisClientLibConfiguration)
-            .execService(executionContextExecutorService.orNull)
-            .kinesisClient(kinesisClient.orNull)
-            .dynamoDBClient(dynamoDBClient.orNull)
-            .cloudWatchClient(cloudWatchClient.orNull)
-            .metricsFactory(metricsFactory.orNull)
-            .shardPrioritization(shardPrioritization.orNull)
-            .build()
+          worker = workerF(
+            newRecordProcessorFactory(onInitializeCallback, onRecordSetCallback, onShutdownCallback),
+            kinesisClientLibConfiguration,
+            executionContextExecutorService,
+            kinesisClient,
+            dynamoDBClient,
+            cloudWatchClient,
+            metricsFactory,
+            shardPrioritization
+          )
           log.info(s"Created Worker instance {} of application {}", worker, worker.getApplicationName)
           schedulePeriodically("check-worker-shutdown", checkWorkerPeriodicity)
           ec.execute(worker)

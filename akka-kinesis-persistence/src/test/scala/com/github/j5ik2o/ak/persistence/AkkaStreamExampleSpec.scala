@@ -1,15 +1,16 @@
 package com.github.j5ik2o.ak.persistence
-import scala.concurrent.duration._
+
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{ Keep, Sink, Source }
+import akka.stream.scaladsl.Source
 import akka.testkit.TestKit
-import org.scalatest.FreeSpecLike
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.freespec.AnyFreeSpecLike
 
-import scala.util.Random
-
-class AkkaStreamExampleSpec extends TestKit(ActorSystem("AkkaStreamExampleSpec")) with FreeSpecLike with ScalaFutures {
+class AkkaStreamExampleSpec
+    extends TestKit(ActorSystem("AkkaStreamExampleSpec"))
+    with AnyFreeSpecLike
+    with ScalaFutures {
   implicit val mat = ActorMaterializer()
   "stream" - {
     "iterator" in {

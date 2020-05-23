@@ -1,6 +1,5 @@
 package com.github.j5ik2o.ak.persistence
 
-import akka.stream.ActorMaterializer
 import com.github.j5ik2o.ak.persistence.lifecycle.{ JournalRowRepository, JournalRowRepositoryOnMemory }
 import com.github.j5ik2o.ak.persistence.model.JournalRow
 import com.github.j5ik2o.ak.persistence.serialization.{ ByteArrayJournalSerializer, FlowPersistentReprSerializer }

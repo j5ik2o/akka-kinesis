@@ -13,16 +13,16 @@ import com.amazonaws.regions.Regions
 import com.amazonaws.services.kinesis.producer.{ KinesisProducerConfiguration, UserRecord, UserRecordResult }
 import com.github.j5ik2o.ak.aws.{ AwsClientConfig, AwsKinesisClient }
 import com.github.j5ik2o.ak.kpl.dsl.{ KPLFlow, KPLFlowSettings }
-import org.scalatest.prop.PropertyChecks
-import org.scalatest.{ BeforeAndAfterAll, FreeSpecLike, Matchers }
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.freespec.AnyFreeSpecLike
+import org.scalatest.matchers.should.Matchers
 
 import scala.collection.JavaConverters._
 
 class KPLFlowSpec
     extends TestKit(ActorSystem("KPLFlowSpec"))
-    with FreeSpecLike
+    with AnyFreeSpecLike
     with BeforeAndAfterAll
-    with PropertyChecks
     with Matchers {
 
   val region     = Regions.AP_NORTHEAST_1

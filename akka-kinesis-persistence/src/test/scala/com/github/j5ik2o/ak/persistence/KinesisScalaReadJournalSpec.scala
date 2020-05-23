@@ -19,8 +19,8 @@ import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{
 }
 import com.github.j5ik2o.ak.aws.{ AwsClientConfig, AwsKinesisClient }
 import com.typesafe.config.ConfigFactory
-import org.scalatest.Matchers
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 
 class KinesisScalaReadJournalSpec
