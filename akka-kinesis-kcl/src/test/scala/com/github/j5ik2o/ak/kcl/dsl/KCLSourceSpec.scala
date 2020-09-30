@@ -7,34 +7,24 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
-import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.Sink
+import akka.stream.{ ActorMaterializer, KillSwitches }
+import akka.stream.scaladsl.{ Keep, Sink }
 import akka.testkit.TestKit
-import com.amazonaws.auth.{ AWSStaticCredentialsProvider, BasicAWSCredentials }
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
-import com.amazonaws.regions.Regions
+import com.amazonaws.services.cloudwatch.{ AmazonCloudWatch, AmazonCloudWatchClientBuilder }
 import com.amazonaws.services.dynamodbv2.{ AmazonDynamoDBAsync, AmazonDynamoDBAsyncClientBuilder }
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{
   InitialPositionInStream,
   KinesisClientLibConfiguration
 }
 import com.amazonaws.services.kinesis.metrics.impl.NullMetricsFactory
-import com.amazonaws.services.kinesis.model.{ PutRecordRequest, ResourceNotFoundException }
-import com.amazonaws.services.kinesis.{ AmazonKinesis, AmazonKinesisClient }
-import com.dimafeng.testcontainers.{
-  Container,
-  FixedHostPortGenericContainer,
-  ForAllTestContainer,
-  GenericContainer,
-  LocalStackContainer,
-  MultipleContainers
-}
+import com.amazonaws.services.kinesis.model.{ PutRecordRequest, Record, ResourceNotFoundException }
+import com.amazonaws.services.kinesis.{ AmazonKinesis, AmazonKinesisClientBuilder }
+import com.dimafeng.testcontainers.{ Container, ForAllTestContainer, LocalStackContainer }
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.testcontainers.containers.localstack.{ LocalStackContainer => JavaLocalStackContainer }
-import org.testcontainers.containers.wait.strategy.Wait
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.{ Duration, _ }
@@ -48,67 +38,59 @@ class KCLSourceSpec
     with ForAllTestContainer
     with Eventually {
   System.setProperty("com.amazonaws.sdk.disableCbor", "1");
-  protected val dynamoDBImageVersion = "1.13.2"
 
-  protected val dynamoDBImageName = s"amazon/dynamodb-local:$dynamoDBImageVersion"
+  implicit val defaultPatience = PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
+
+  val localStack = LocalStackContainer(
+    tag = "0.9.5",
+    services = Seq(
+      JavaLocalStackContainer.Service.DYNAMODB,
+      JavaLocalStackContainer.Service.KINESIS,
+      JavaLocalStackContainer.Service.CLOUDWATCH
+    )
+  )
 
   val applicationName = "kcl-source-spec"
   val streamName      = sys.env.getOrElse("STREAM_NAME", "kcl-flow-spec") + UUID.randomUUID().toString
   val workerId        = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID()
 
-  val kinesisLocal = GenericContainer(
-    "vsouza/kinesis-local",
-    exposedPorts = Seq(4567),
-    waitStrategy = Wait.forListeningPort(),
-    command = Seq("--port", "4567", "--createStreamMs", "5")
-  )
-
-  val dynamoDbLocal = GenericContainer(
-    dynamoDBImageName,
-    exposedPorts = Seq(8000),
-    waitStrategy = Wait.forListeningPort(),
-    command = Seq("-jar", "DynamoDBLocal.jar", "-dbPath", ".", "-sharedDb")
-  )
-
-  override def container: Container = MultipleContainers(kinesisLocal, dynamoDbLocal)
+  override def container: Container = localStack
 
   var awsKinesisClient: AmazonKinesis                              = _
   var awsDynamoDBClient: AmazonDynamoDBAsync                       = _
+  var awsCloudWatch: AmazonCloudWatch                              = _
   var kinesisClientLibConfiguration: KinesisClientLibConfiguration = _
 
   override def afterStart(): Unit = {
+    val credentialsProvider             = localStack.defaultCredentialsProvider
+    val dynamoDbEndpointConfiguration   = localStack.endpointConfiguration(JavaLocalStackContainer.Service.DYNAMODB)
+    val kinesisEndpointConfiguration    = localStack.endpointConfiguration(JavaLocalStackContainer.Service.KINESIS)
+    val cloudwatchEndpointConfiguration = localStack.endpointConfiguration(JavaLocalStackContainer.Service.CLOUDWATCH)
+
     awsDynamoDBClient = AmazonDynamoDBAsyncClientBuilder
       .standard()
-      .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")))
-      .withEndpointConfiguration(
-        new EndpointConfiguration(
-          s"http://127.0.0.1:${dynamoDbLocal.container.getFirstMappedPort}",
-          Regions.AP_NORTHEAST_1.getName
-        )
-      )
+      .withCredentials(credentialsProvider)
+      .withEndpointConfiguration(dynamoDbEndpointConfiguration)
       .build()
 
-    val kinesisEndpoint = s"http://127.0.0.1:${kinesisLocal.container.getFirstMappedPort}"
-    println(kinesisEndpoint)
-    awsKinesisClient = AmazonKinesisClient
-      .builder()
-      .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")))
-      .withEndpointConfiguration(
-        new EndpointConfiguration(
-          kinesisEndpoint,
-          Regions.AP_NORTHEAST_1.getName
-        )
-      )
+    awsKinesisClient = AmazonKinesisClientBuilder
+      .standard()
+      .withCredentials(credentialsProvider)
+      .withEndpointConfiguration(kinesisEndpointConfiguration)
       .build()
 
-    val result = awsKinesisClient.createStream(streamName, 1)
-    println(result)
+    awsCloudWatch = AmazonCloudWatchClientBuilder
+      .standard()
+      .withCredentials(credentialsProvider)
+      .withEndpointConfiguration(cloudwatchEndpointConfiguration).build()
+
+    assert(awsKinesisClient.createStream(streamName, 1).getSdkHttpMetadata.getHttpStatusCode == 200)
     waitStreamToCreated(streamName)
 
     kinesisClientLibConfiguration = new KinesisClientLibConfiguration(
       applicationName,
       streamName,
-      new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")),
+      credentialsProvider,
       workerId
     ).withTableName(streamName)
       .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
@@ -116,11 +98,9 @@ class KCLSourceSpec
   }
 
   override def beforeStop(): Unit = {
-//    awsKinesisClient.deleteStream(streamName)
-    //   awsDynamoDBClient.deleteTable(streamName)
+    awsKinesisClient.deleteStream(streamName)
+    awsDynamoDBClient.deleteTable(streamName)
   }
-
-  implicit val defaultPatience = PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
 
   def waitStreamToCreated(streamName: String, waitDuration: Duration = 1 seconds): Try[Unit] = {
     def go: Try[Unit] = {
@@ -160,12 +140,16 @@ class KCLSourceSpec
 
   "KCLSourceSpec" - {
     "should be able to consume message" in {
-      val future = KCLSource(
+      var result: Record = null
+      val (sw, future) = KCLSource(
         kinesisClientLibConfiguration = kinesisClientLibConfiguration,
         kinesisClient = Some(awsKinesisClient),
         dynamoDBClient = Some(awsDynamoDBClient),
+        cloudWatchClient = Some(awsCloudWatch),
         metricsFactory = Some(new NullMetricsFactory)
-      ).runWith(Sink.foreach(println))
+      ).viaMat(KillSwitches.single)(Keep.right)
+        .toMat(Sink.foreach { msg: Record => result = msg })(Keep.both)
+        .run()
 
       val text = "abc"
       awsKinesisClient.putRecord(
@@ -175,7 +159,12 @@ class KCLSourceSpec
           .withData(ByteBuffer.wrap(text.getBytes(StandardCharsets.UTF_8)))
       )
 
-      TimeUnit.SECONDS.sleep(10)
+      eventually {
+        assert(result != null && new String(result.getData.array()) == text)
+      }
+
+      sw.shutdown()
+      future.futureValue
 
     }
   }
