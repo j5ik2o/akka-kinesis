@@ -1,5 +1,7 @@
 package com.github.j5ik2o.ak.kpl.stage
 
+import java.util.concurrent.CompletableFuture
+
 import akka.stream.stage._
 import akka.stream.{ Attributes, FlowShape, Inlet, Outlet }
 import com.amazonaws.services.kinesis.producer._
@@ -7,18 +9,19 @@ import com.github.j5ik2o.ak.kpl.dsl.KPLFlowSettings.{ Exponential, Lineal, Retry
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.concurrent.{ ExecutionContext, Future, Promise }
+import scala.compat.java8.FutureConverters._
 import scala.concurrent.duration._
+import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.util.{ Failure, Success, Try }
 
-class KPLFlowStage(kinesisProducerConfiguration: KinesisProducerConfiguration,
-                   maxRetries: Int,
-                   backoffStrategy: RetryBackoffStrategy,
-                   retryInitialTimeout: FiniteDuration)(
+class KPLFlowStage(
+    kinesisProducerConfiguration: KinesisProducerConfiguration,
+    maxRetries: Int,
+    backoffStrategy: RetryBackoffStrategy,
+    retryInitialTimeout: FiniteDuration
+)(
     implicit ec: ExecutionContext
 ) extends GraphStageWithMaterializedValue[FlowShape[UserRecord, UserRecordResult], Future[KinesisProducer]] {
-
-  import com.github.j5ik2o.ak.aws.JavaFutureConverter._
 
   private val in  = Inlet[UserRecord]("KPLFlowStage.int")
   private val out = Outlet[UserRecordResult]("KPLFlowStage.out")
@@ -53,15 +56,16 @@ class KPLFlowStage(kinesisProducerConfiguration: KinesisProducerConfiguration,
           log.debug("Executing PutRecords call")
           inFlight += 1
           val userRecord = requestWithAttempts.dequeue()
-          producer.addUserRecord(userRecord.request).toScala.onComplete { triedUserRecordResult =>
-            triedUserRecordResult match {
-              case Success(userRecordResult) =>
-                push(out, userRecordResult)
-              case _ =>
-                ()
-            }
-            val requestWithResult = RequestWithResult(userRecord.request, triedUserRecordResult, userRecord.attempt)
-            resultCallback.invoke(requestWithResult)
+          CompletableFuture.supplyAsync(() => producer.addUserRecord(userRecord.request).get()).toScala.onComplete {
+            triedUserRecordResult =>
+              triedUserRecordResult match {
+                case Success(userRecordResult) =>
+                  push(out, userRecordResult)
+                case _ =>
+                  ()
+              }
+              val requestWithResult = RequestWithResult(userRecord.request, triedUserRecordResult, userRecord.attempt)
+              resultCallback.invoke(requestWithResult)
           }
         }
       }
