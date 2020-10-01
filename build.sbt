@@ -97,7 +97,7 @@ val dependenciesCommonSettings = Seq(
 )
 
 val `akka-kinesis-kpl` = (project in file("akka-kinesis-kpl"))
-  .settings(baseSettings, dependenciesCommonSettings)
+  .settings(baseSettings, dependenciesCommonSettings, deploySettings)
   .settings(
     name := "akka-kinesis-kpl",
     libraryDependencies ++= Seq(
@@ -109,7 +109,7 @@ val `akka-kinesis-kpl` = (project in file("akka-kinesis-kpl"))
   )
 
 val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
-  .settings(baseSettings, dependenciesCommonSettings)
+  .settings(baseSettings, dependenciesCommonSettings, deploySettings)
   .settings(
     name := "akka-kinesis-kcl",
     libraryDependencies ++= Seq(
@@ -121,7 +121,7 @@ val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
     parallelExecution in Test := false
   )
 
-val `akka-kinesis` = (project in file("."))
-  .settings(baseSettings)
-  .settings(name := "akka-kinesis")
+val `akka-kinesis-root` = (project in file("."))
+  .settings(baseSettings, deploySettings)
+  .settings(name := "akka-kinesis-root")
   .aggregate(`akka-kinesis-kpl`, `akka-kinesis-kcl`)
