@@ -138,7 +138,7 @@ object KCLSourceStage {
           cacheEntryTime,
           cacheExitTIme,
           timeSpentInCache,
-          records,
+          records.toVector,
           millisBehindLatest,
           checkPointer
         )
@@ -251,7 +251,7 @@ class KCLSourceStage(
             shardPrioritization
           )
           log.info(s"Created Worker instance {} of application {}", worker, worker.getApplicationName)
-          schedulePeriodically("check-worker-shutdown", checkWorkerPeriodicity)
+          scheduleAtFixedRate("check-worker-shutdown", checkWorkerPeriodicity, checkWorkerPeriodicity)
           ec.execute(worker)
           workerPromise.success(worker)
         } catch {

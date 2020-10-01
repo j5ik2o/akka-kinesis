@@ -136,8 +136,6 @@ class KCLSourceSpec
 
   import system.dispatcher
 
-  implicit val mat = ActorMaterializer()
-
   "KCLSourceSpec" - {
     "should be able to consume message" in {
       var result: Record = null
