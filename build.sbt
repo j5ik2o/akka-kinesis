@@ -102,7 +102,9 @@ val `akka-kinesis-kpl` = (project in file("akka-kinesis-kpl"))
   .settings(
     name := "akka-kinesis-kpl",
     libraryDependencies ++= Seq(
-        "com.amazonaws" % "amazon-kinesis-producer" % "0.14.0"
+        "com.amazonaws" % "amazon-kinesis-producer" % "0.14.1",
+        "com.amazonaws" % "aws-java-sdk-cloudwatch" % awsSdkVersion % Test,
+        "com.amazonaws" % "aws-java-sdk-dynamodb"   % awsSdkVersion % Test
       ),
     parallelExecution in Test := false
   )
@@ -113,8 +115,8 @@ val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
     name := "akka-kinesis-kcl",
     libraryDependencies ++= Seq(
         "com.amazonaws"          % "amazon-kinesis-client"   % "1.11.2",
-        "com.amazonaws"          % "aws-java-sdk-cloudwatch" % awsSdkVersion,
-        "com.amazonaws"          % "aws-java-sdk-dynamodb"   % awsSdkVersion,
+        "com.amazonaws"          % "aws-java-sdk-cloudwatch" % awsSdkVersion % Test,
+        "com.amazonaws"          % "aws-java-sdk-dynamodb"   % awsSdkVersion % Test,
         "org.scala-lang.modules" %% "scala-java8-compat"     % "0.9.1"
       ),
     parallelExecution in Test := false

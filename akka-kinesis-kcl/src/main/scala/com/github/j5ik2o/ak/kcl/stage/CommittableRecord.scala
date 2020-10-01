@@ -8,12 +8,14 @@ import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.RecordProcessor
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-class CommittableRecord(val shardId: String,
-                        val recordProcessorStartingSequenceNumber: ExtendedSequenceNumber,
-                        val millisBehindLatest: Long,
-                        val record: Record,
-                        recordProcessor: RecordProcessor,
-                        checkPointer: IRecordProcessorCheckpointer)(implicit executor: ExecutionContext) {
+class CommittableRecord(
+    val shardId: String,
+    val recordProcessorStartingSequenceNumber: ExtendedSequenceNumber,
+    val millisBehindLatest: Long,
+    val record: Record,
+    recordProcessor: RecordProcessor,
+    checkPointer: IRecordProcessorCheckpointer
+)(implicit executor: ExecutionContext) {
 
   val sequenceNumber: String = record.getSequenceNumber
 

@@ -1,6 +1,6 @@
 package com.github.j5ik2o.ak.kpl.stage
 
-import java.util.concurrent.CompletableFuture
+import java.util.concurrent.{ CompletableFuture, ExecutionException }
 
 import akka.stream.stage._
 import akka.stream.{ Attributes, FlowShape, Inlet, Outlet }
@@ -56,8 +56,13 @@ class KPLFlowStage(
           log.debug("Executing PutRecords call")
           inFlight += 1
           val userRecord = requestWithAttempts.dequeue()
-          CompletableFuture.supplyAsync(() => producer.addUserRecord(userRecord.request).get()).toScala.onComplete {
-            triedUserRecordResult =>
+          val jFuture    = producer.addUserRecord(userRecord.request)
+          Future { jFuture.get() }
+            .transform {
+              case Failure(e: ExecutionException) =>
+                Failure(e.getCause)
+              case x => x
+            }.onComplete { triedUserRecordResult =>
               triedUserRecordResult match {
                 case Success(userRecordResult) =>
                   push(out, userRecordResult)
@@ -66,7 +71,7 @@ class KPLFlowStage(
               }
               val requestWithResult = RequestWithResult(userRecord.request, triedUserRecordResult, userRecord.attempt)
               resultCallback.invoke(requestWithResult)
-          }
+            }
         }
       }
 

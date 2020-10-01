@@ -2,41 +2,69 @@ package com.github.j5ik2o.ak.kpl
 
 import java.nio.ByteBuffer
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
-import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{ Keep, Source }
-import akka.stream.testkit.TestSubscriber
-import akka.stream.testkit.scaladsl.TestSink
+import akka.stream.scaladsl.{ Keep, Sink, Source }
+import akka.stream.{ ActorMaterializer, KillSwitches }
 import akka.testkit.TestKit
+import com.amazonaws.SDKGlobalConfiguration
+import com.amazonaws.auth.{ AWSStaticCredentialsProvider, BasicAWSCredentials }
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.regions.Regions
-import com.amazonaws.services.kinesis.AmazonKinesisClient
 import com.amazonaws.services.kinesis.model.ResourceNotFoundException
 import com.amazonaws.services.kinesis.producer.{ KinesisProducerConfiguration, UserRecord, UserRecordResult }
+import com.amazonaws.services.kinesis.{ AmazonKinesis, AmazonKinesisClientBuilder }
+import com.dimafeng.testcontainers.{ Container, ForAllTestContainer, GenericContainer }
 import com.github.j5ik2o.ak.kpl.dsl.{ KPLFlow, KPLFlowSettings }
 import org.scalatest.BeforeAndAfterAll
+import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.should.Matchers
+import org.testcontainers.containers.localstack.{ LocalStackContainer => JavaLocalStackContainer }
+import org.testcontainers.containers.wait.strategy.Wait
 
 import scala.collection.JavaConverters._
-import scala.concurrent.duration._
+import scala.concurrent.duration.{ Duration, _ }
 import scala.util.{ Failure, Success, Try }
 
 class KPLFlowSpec
     extends TestKit(ActorSystem("KPLFlowSpec"))
     with AnyFreeSpecLike
     with BeforeAndAfterAll
-    with Matchers {
+    with Matchers
+    with ScalaFutures
+    with ForAllTestContainer
+    with Eventually {
 
-  val region = Regions.AP_NORTHEAST_1
+  System.setProperty(SDKGlobalConfiguration.AWS_CBOR_DISABLE_SYSTEM_PROPERTY, "true")
+  System.setProperty(SDKGlobalConfiguration.DISABLE_CERT_CHECKING_SYSTEM_PROPERTY, "true")
 
-  val client = AmazonKinesisClient.builder().withRegion(region).build()
+  val services = Seq(JavaLocalStackContainer.Service.KINESIS, JavaLocalStackContainer.Service.CLOUDWATCH)
 
-  val streamName = sys.env("KPL_STREAM_NAME") + UUID.randomUUID().toString
+  val localStack = new GenericContainer(
+    dockerImage = "localstack/localstack:0.9.5",
+    exposedPorts = services.map(_.getPort),
+    env = Map(
+      "SERVICES"         -> services.map(_.getLocalStackName).mkString(","),
+      "USE_SSL"          -> "true",
+      "AWS_CBOR_DISABLE" -> "true"
+    ),
+    command = Seq(),
+    classpathResourceMapping = Seq(),
+    waitStrategy = Some(Wait.forLogMessage(".*Ready\\.\n", 1))
+  )
+
+  override def container: Container = localStack
+
+  var awsKinesisClient: AmazonKinesis                            = _
+  var kinesisProducerConfiguration: KinesisProducerConfiguration = _
+
+  val streamName = sys.env.getOrElse("STREAM_NAME", "kpl-flow-spec") + UUID.randomUUID().toString
 
   def waitStreamToCreated(streamName: String, waitDuration: Duration = 1 seconds): Try[Unit] = {
     def go: Try[Unit] = {
-      Try { client.describeStream(streamName) } match {
+      Try { awsKinesisClient.describeStream(streamName) } match {
         case Success(result) if result.getStreamDescription.getStreamStatus == "ACTIVE" =>
           println(s"waiting completed: $streamName, $result")
           Success(())
@@ -58,7 +86,7 @@ class KPLFlowSpec
   }
 
   def waitStreamsToCreated(): Try[Unit] = {
-    Try { client.listStreams() }.flatMap { result =>
+    Try { awsKinesisClient.listStreams() }.flatMap { result =>
       result.getStreamNames.asScala.foldLeft(Try(())) {
         case (_, streamName) =>
           waitStreamToCreated(streamName)
@@ -66,13 +94,37 @@ class KPLFlowSpec
     }
   }
 
-  override protected def beforeAll(): Unit = {
-    client.createStream(streamName, 1)
+  override def afterStart(): Unit = {
+    val credentialsProvider = new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x"))
+    val kinesisPort         = localStack.container.getMappedPort(JavaLocalStackContainer.Service.KINESIS.getPort)
+    val cloudwatchPort      = localStack.container.getMappedPort(JavaLocalStackContainer.Service.CLOUDWATCH.getPort)
+
+    println(s"kinesis = $kinesisPort, cloudwatch = $cloudwatchPort")
+
+    awsKinesisClient = AmazonKinesisClientBuilder
+      .standard()
+      .withCredentials(credentialsProvider)
+      .withEndpointConfiguration(
+        new EndpointConfiguration(s"https://127.0.0.1:$kinesisPort", Regions.AP_NORTHEAST_1.getName)
+      )
+      .build()
+
+    awsKinesisClient.createStream(streamName, 1)
     waitStreamToCreated(streamName)
+
+    kinesisProducerConfiguration = new KinesisProducerConfiguration()
+      .setCredentialsProvider(credentialsProvider)
+      .setRegion(Regions.AP_NORTHEAST_1.getName)
+      .setKinesisEndpoint("127.0.0.1")
+      .setKinesisPort(kinesisPort.toLong)
+      .setCloudwatchEndpoint("127.0.0.1")
+      .setCloudwatchPort(cloudwatchPort.toLong)
+      .setCredentialsRefreshDelay(100)
+      .setVerifyCertificate(false)
   }
 
-  override protected def afterAll(): Unit = {
-    client.deleteStream(streamName)
+  override def beforeStop(): Unit = {
+    awsKinesisClient.deleteStream(streamName)
   }
 
   "KPLFlow" - {
@@ -80,25 +132,27 @@ class KPLFlowSpec
       implicit val ec  = system.dispatcher
       implicit val mat = ActorMaterializer()
 
-      val partitionKey = "123"
-      val data         = "XYZ"
-
-      val kinesisProducerConfiguration = new KinesisProducerConfiguration()
-        .setRegion(region.getName)
-        .setCredentialsRefreshDelay(100)
+      var result: UserRecordResult = null
+      val partitionKey             = "123"
+      val data                     = "XYZ"
 
       val kplFlowSettings = KPLFlowSettings.byNumberOfShards(1)
-      val probe: TestSubscriber.Probe[UserRecordResult] = Source
+      val (sw, future) = Source
         .single(
           new UserRecord()
             .withStreamName(streamName)
             .withPartitionKey(partitionKey)
             .withData(ByteBuffer.wrap(data.getBytes()))
         )
+        .viaMat(KillSwitches.single)(Keep.right)
         .viaMat(KPLFlow(streamName, kinesisProducerConfiguration, kplFlowSettings))(Keep.left)
-        .runWith(TestSink.probe)
+        .toMat(Sink.foreach { msg => result = msg })(Keep.both)
+        .run()
 
-      val result = probe.request(1).expectNext()
+      TimeUnit.SECONDS.sleep(10)
+
+      sw.shutdown()
+      future.futureValue
       result should not be null
       result.getShardId should not be null
       result.getSequenceNumber should not be null

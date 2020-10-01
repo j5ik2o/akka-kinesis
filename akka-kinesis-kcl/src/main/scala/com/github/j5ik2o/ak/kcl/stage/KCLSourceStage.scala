@@ -45,24 +45,29 @@ object KCLSourceStage {
     (AsyncCallback[InitializationInput], AsyncCallback[RecordSet], AsyncCallback[ShutdownInput]) => IRecordProcessor
 
   type WorkerF =
-    (IRecordProcessorFactory,
-     KinesisClientLibConfiguration,
-     Option[ExecutionContextExecutorService],
-     Option[AmazonKinesis],
-     Option[AmazonDynamoDB],
-     Option[AmazonCloudWatch],
-     Option[IMetricsFactory],
-     Option[ShardPrioritization]) => Worker
+    (
+        IRecordProcessorFactory,
+        KinesisClientLibConfiguration,
+        Option[ExecutionContextExecutorService],
+        Option[AmazonKinesis],
+        Option[AmazonDynamoDB],
+        Option[AmazonCloudWatch],
+        Option[IMetricsFactory],
+        Option[ShardPrioritization]
+    ) => Worker
 
-  case class RecordSet(recordProcessor: RecordProcessor,
-                       shardId: String,
-                       extendedSequenceNumber: ExtendedSequenceNumber,
-                       cacheEntryTime: Instant,
-                       cacheExitTIme: Instant,
-                       timeSpentInCache: FiniteDuration,
-                       records: Seq[Record],
-                       millisBehindLatest: Long,
-                       recordProcessorCheckPointer: IRecordProcessorCheckpointer) {
+  case class RecordSet(
+      recordProcessor: RecordProcessor,
+      shardId: String,
+      extendedSequenceNumber: ExtendedSequenceNumber,
+      cacheEntryTime: Instant,
+      cacheExitTIme: Instant,
+      timeSpentInCache: FiniteDuration,
+      records: Seq[Record],
+      millisBehindLatest: Long,
+      recordProcessorCheckPointer: IRecordProcessorCheckpointer
+  ) {
+
     def checkPoint: Try[Unit] =
       if (recordProcessor.maybeShutdownReason.nonEmpty) Success(())
       else Try { recordProcessorCheckPointer.checkpoint(records.last) }
@@ -73,14 +78,16 @@ object KCLSourceStage {
       new RecordProcessor(onInitializeCallback, onRecordsCallback, onShutdownCallback)
 
   def newDefaultWorker: WorkerF =
-    (newRecordProcessorFactory,
-     kinesisClientLibConfiguration,
-     executionContextExecutorService,
-     kinesisClient,
-     dynamoDBClient,
-     cloudWatchClient,
-     metricsFactory,
-     shardPrioritization) =>
+    (
+        newRecordProcessorFactory,
+        kinesisClientLibConfiguration,
+        executionContextExecutorService,
+        kinesisClient,
+        dynamoDBClient,
+        cloudWatchClient,
+        metricsFactory,
+        shardPrioritization
+    ) =>
       new Worker.Builder()
         .recordProcessorFactory(
           newRecordProcessorFactory
@@ -94,10 +101,11 @@ object KCLSourceStage {
         .shardPrioritization(shardPrioritization.orNull)
         .build()
 
-  class RecordProcessor(onInitializeCallback: AsyncCallback[InitializationInput],
-                        onRecordsCallback: AsyncCallback[RecordSet],
-                        onShutdownCallback: AsyncCallback[ShutdownInput])
-      extends IRecordProcessor {
+  class RecordProcessor(
+      onInitializeCallback: AsyncCallback[InitializationInput],
+      onRecordsCallback: AsyncCallback[RecordSet],
+      onShutdownCallback: AsyncCallback[ShutdownInput]
+  ) extends IRecordProcessor {
     private[this] var _shardId: String                                         = _
     private[this] var _extendedSequenceNumber: ExtendedSequenceNumber          = _
     private[this] var _pendingCheckpointSequenceNumber: ExtendedSequenceNumber = _
@@ -123,15 +131,17 @@ object KCLSourceStage {
       val millisBehindLatest = processRecordsInput.getMillisBehindLatest
       val checkPointer       = processRecordsInput.getCheckpointer
       val recordSet =
-        RecordSet(this,
-                  _shardId,
-                  _extendedSequenceNumber,
-                  cacheEntryTime,
-                  cacheExitTIme,
-                  timeSpentInCache,
-                  records,
-                  millisBehindLatest,
-                  checkPointer)
+        RecordSet(
+          this,
+          _shardId,
+          _extendedSequenceNumber,
+          cacheEntryTime,
+          cacheExitTIme,
+          timeSpentInCache,
+          records,
+          millisBehindLatest,
+          checkPointer
+        )
       onRecordsCallback.invoke(recordSet)
     }
 
@@ -142,25 +152,29 @@ object KCLSourceStage {
   }
 }
 
-class KCLSourceStage(kinesisClientLibConfiguration: KinesisClientLibConfiguration,
-                     executionContextExecutorService: Option[ExecutionContextExecutorService] = None,
-                     kinesisClient: Option[AmazonKinesis] = None,
-                     dynamoDBClient: Option[AmazonDynamoDB] = None,
-                     cloudWatchClient: Option[AmazonCloudWatch] = None,
-                     metricsFactory: Option[IMetricsFactory] = None,
-                     shardPrioritization: Option[ShardPrioritization] = None,
-                     checkWorkerPeriodicity: FiniteDuration = 1 seconds,
-                     recordProcessorF: RecordProcessorF = KCLSourceStage.newDefaultRecordProcessor,
-                     workerF: WorkerF = KCLSourceStage.newDefaultWorker)(implicit ec: ExecutionContext)
+class KCLSourceStage(
+    kinesisClientLibConfiguration: KinesisClientLibConfiguration,
+    executionContextExecutorService: Option[ExecutionContextExecutorService] = None,
+    kinesisClient: Option[AmazonKinesis] = None,
+    dynamoDBClient: Option[AmazonDynamoDB] = None,
+    cloudWatchClient: Option[AmazonCloudWatch] = None,
+    metricsFactory: Option[IMetricsFactory] = None,
+    shardPrioritization: Option[ShardPrioritization] = None,
+    checkWorkerPeriodicity: FiniteDuration = 1 seconds,
+    recordProcessorF: RecordProcessorF = KCLSourceStage.newDefaultRecordProcessor,
+    workerF: WorkerF = KCLSourceStage.newDefaultWorker
+)(implicit ec: ExecutionContext)
     extends GraphStageWithMaterializedValue[SourceShape[CommittableRecord], Future[Worker]] {
 
   private val out: Outlet[CommittableRecord] = Outlet("KCLSource.out")
 
   override def shape: SourceShape[CommittableRecord] = SourceShape(out)
 
-  protected def newRecordProcessorFactory(onInitializeCallback: AsyncCallback[InitializationInput],
-                                          onRecordCallback: AsyncCallback[RecordSet],
-                                          onShutdownCallback: AsyncCallback[ShutdownInput]): IRecordProcessorFactory =
+  protected def newRecordProcessorFactory(
+      onInitializeCallback: AsyncCallback[InitializationInput],
+      onRecordCallback: AsyncCallback[RecordSet],
+      onShutdownCallback: AsyncCallback[ShutdownInput]
+  ): IRecordProcessorFactory =
     () => recordProcessorF(onInitializeCallback, onRecordCallback, onShutdownCallback)
 
   override def createLogicAndMaterializedValue(

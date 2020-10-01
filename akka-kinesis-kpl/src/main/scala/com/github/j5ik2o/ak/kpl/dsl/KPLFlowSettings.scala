@@ -30,10 +30,12 @@ object KPLFlowSettings {
 
 }
 
-case class KPLFlowSettings(parallelism: Int,
-                           maxBatchSize: Int,
-                           maxRecordsPerSecond: Int,
-                           maxBytesPerSecond: Int,
-                           maxRetries: Int = 5,
-                           backoffStrategy: KPLFlowSettings.RetryBackoffStrategy = KPLFlowSettings.Exponential,
-                           retryInitialTimeout: FiniteDuration = 100 millis)
+case class KPLFlowSettings(
+    parallelism: Int,
+    maxBatchSize: Int,
+    maxRecordsPerSecond: Int,
+    maxBytesPerSecond: Int,
+    maxRetries: Int = 5,
+    backoffStrategy: KPLFlowSettings.RetryBackoffStrategy = KPLFlowSettings.Exponential,
+    retryInitialTimeout: FiniteDuration = 100 millis
+)

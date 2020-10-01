@@ -4,12 +4,12 @@ import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
-import akka.stream.{ ActorMaterializer, KillSwitches }
 import akka.stream.scaladsl.{ Keep, Sink }
+import akka.stream.{ ActorMaterializer, KillSwitches }
 import akka.testkit.TestKit
+import com.amazonaws.SDKGlobalConfiguration
 import com.amazonaws.services.cloudwatch.{ AmazonCloudWatch, AmazonCloudWatchClientBuilder }
 import com.amazonaws.services.dynamodbv2.{ AmazonDynamoDBAsync, AmazonDynamoDBAsyncClientBuilder }
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{
@@ -37,7 +37,7 @@ class KCLSourceSpec
     with ScalaFutures
     with ForAllTestContainer
     with Eventually {
-  System.setProperty("com.amazonaws.sdk.disableCbor", "1");
+  System.setProperty(SDKGlobalConfiguration.AWS_CBOR_DISABLE_SYSTEM_PROPERTY, "true")
 
   implicit val defaultPatience = PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
 

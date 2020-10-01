@@ -13,9 +13,7 @@ object KCLFlow {
     Flow[CommittableRecord]
       .mapAsync(1) { v =>
         if (v.canBeCheckpointed()) {
-          v.checkpoint().map { _ =>
-            v
-          }
+          v.checkpoint().map { _ => v }
         } else Future.successful(v)
       }
       .map(_.record)
