@@ -31,7 +31,7 @@ object KCLSource {
       recordProcessorFactoryOpt: Option[IRecordProcessorFactory] = None,
       executionContextExecutorService: Option[ExecutionContextExecutorService] = None
   )(implicit ec: ExecutionContext): Source[Record, Future[Worker]] = {
-    withCheckpointWithWorker(
+    ofCustomWorker(
       checkWorkerPeriodicity,
       KCLSourceStage.newDefaultWorker(
         kinesisClientLibConfiguration,
@@ -46,11 +46,11 @@ object KCLSource {
     )
   }
 
-  def withCheckpointWithWorker(
+  def ofCustomWorker(
       checkWorkerPeriodicity: FiniteDuration = 1 seconds,
       workerF: WorkerF
   )(implicit ec: ExecutionContext): Source[Record, Future[Worker]] =
-    withoutCheckpointWithWorker(
+    ofCustomWorkerWithoutCheckpoint(
       checkWorkerPeriodicity,
       workerF
     ).via(KCLFlow.ofCheckpoint())
@@ -66,7 +66,7 @@ object KCLSource {
       recordProcessorFactoryOpt: Option[IRecordProcessorFactory],
       executionContextExecutorService: Option[ExecutionContextExecutorService]
   )(implicit ec: ExecutionContext): Source[CommittableRecord, Future[Worker]] = {
-    withoutCheckpointWithWorker(
+    ofCustomWorkerWithoutCheckpoint(
       checkWorkerPeriodicity,
       KCLSourceStage.newDefaultWorker(
         kinesisClientLibConfiguration,
@@ -81,7 +81,7 @@ object KCLSource {
     )
   }
 
-  def withoutCheckpointWithWorker(
+  def ofCustomWorkerWithoutCheckpoint(
       checkWorkerPeriodicity: FiniteDuration = 1 seconds,
       workerF: WorkerF
   )(implicit ec: ExecutionContext): Source[CommittableRecord, Future[Worker]] =

@@ -6,8 +6,8 @@ import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 import akka.actor.ActorSystem
+import akka.stream.KillSwitches
 import akka.stream.scaladsl.{ Keep, Sink }
-import akka.stream.{ ActorMaterializer, KillSwitches }
 import akka.testkit.TestKit
 import com.amazonaws.SDKGlobalConfiguration
 import com.amazonaws.services.cloudwatch.{ AmazonCloudWatch, AmazonCloudWatchClientBuilder }
