@@ -1,4 +1,3 @@
-val scala211Version = "2.11.12"
 val scala212Version = "2.12.10"
 val scala213Version = "2.13.1"
 
@@ -45,7 +44,7 @@ lazy val deploySettings = Seq(
 lazy val baseSettings = Seq(
   organization := "com.github.j5ik2o",
   scalaVersion := scala212Version,
-  crossScalaVersions := Seq(scala211Version, scala212Version, scala213Version),
+  crossScalaVersions := Seq(scala212Version, scala213Version),
   scalacOptions ++= (Seq(
       "-feature",
       "-deprecation",
@@ -70,7 +69,7 @@ lazy val baseSettings = Seq(
 )
 
 val awsSdkVersion              = "1.11.788"
-val akkaVersion                = "2.5.31"
+val akkaVersion                = "2.6.8"
 val testcontainersScalaVersion = "0.36.1"
 
 val dependenciesCommonSettings = Seq(
@@ -115,9 +114,9 @@ val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
     name := "akka-kinesis-kcl",
     libraryDependencies ++= Seq(
         "com.amazonaws"          % "amazon-kinesis-client"   % "1.11.2",
+        "org.scala-lang.modules" %% "scala-java8-compat"     % "0.9.1",
         "com.amazonaws"          % "aws-java-sdk-cloudwatch" % awsSdkVersion % Test,
-        "com.amazonaws"          % "aws-java-sdk-dynamodb"   % awsSdkVersion % Test,
-        "org.scala-lang.modules" %% "scala-java8-compat"     % "0.9.1"
+        "com.amazonaws"          % "aws-java-sdk-dynamodb"   % awsSdkVersion % Test
       ),
     parallelExecution in Test := false
   )
