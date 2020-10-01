@@ -140,11 +140,13 @@ class KCLSourceSpec
     "should be able to consume message" in {
       var result: Record = null
       val (sw, future) = KCLSource(
-        kinesisClientLibConfiguration = kinesisClientLibConfiguration,
-        kinesisClient = Some(awsKinesisClient),
-        dynamoDBClient = Some(awsDynamoDBClient),
-        cloudWatchClient = Some(awsCloudWatch),
-        metricsFactory = Some(new NullMetricsFactory)
+        kinesisClientLibConfiguration,
+        amazonKinesisOpt = Some(awsKinesisClient),
+        amazonDynamoDBOpt = Some(awsDynamoDBClient),
+        amazonCloudWatchOpt = Some(awsCloudWatch),
+        iMetricsFactoryOpt = Some(new NullMetricsFactory),
+        recordProcessorFactoryOpt = None,
+        executionContextExecutorService = None
       ).viaMat(KillSwitches.single)(Keep.right)
         .toMat(Sink.foreach { msg: Record => result = msg })(Keep.both)
         .run()

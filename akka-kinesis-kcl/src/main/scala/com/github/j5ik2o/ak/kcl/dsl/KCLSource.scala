@@ -4,15 +4,15 @@ import akka.stream.scaladsl.Source
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB
 import com.amazonaws.services.kinesis.AmazonKinesis
+import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcessorFactory
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{
   KinesisClientLibConfiguration,
   ShardPrioritization,
   Worker
 }
-import com.amazonaws.services.kinesis.clientlibrary.types.{ InitializationInput, ShutdownInput }
 import com.amazonaws.services.kinesis.metrics.interfaces.IMetricsFactory
 import com.amazonaws.services.kinesis.model.Record
-import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.{ RecordProcessorF, WorkerF }
+import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.WorkerF
 import com.github.j5ik2o.ak.kcl.stage.{ CommittableRecord, KCLSourceStage }
 
 import scala.concurrent.duration._
@@ -22,54 +22,69 @@ object KCLSource {
 
   def apply(
       kinesisClientLibConfiguration: KinesisClientLibConfiguration,
-      executionContextExecutorService: Option[ExecutionContextExecutorService] = None,
-      kinesisClient: Option[AmazonKinesis] = None,
-      dynamoDBClient: Option[AmazonDynamoDB] = None,
-      cloudWatchClient: Option[AmazonCloudWatch] = None,
-      metricsFactory: Option[IMetricsFactory] = None,
-      shardPrioritization: Option[ShardPrioritization] = None,
       checkWorkerPeriodicity: FiniteDuration = 1 seconds,
-      recordProcessorF: RecordProcessorF = KCLSourceStage.newDefaultRecordProcessor,
-      workerF: WorkerF = KCLSourceStage.newDefaultWorker
-  )(implicit ec: ExecutionContext): Source[Record, Future[Worker]] =
-    withoutCheckpoint(
-      kinesisClientLibConfiguration,
-      executionContextExecutorService,
-      kinesisClient,
-      dynamoDBClient,
-      cloudWatchClient,
-      metricsFactory,
-      shardPrioritization,
+      amazonKinesisOpt: Option[AmazonKinesis] = None,
+      amazonDynamoDBOpt: Option[AmazonDynamoDB] = None,
+      amazonCloudWatchOpt: Option[AmazonCloudWatch] = None,
+      iMetricsFactoryOpt: Option[IMetricsFactory] = None,
+      shardPrioritizationOpt: Option[ShardPrioritization] = None,
+      recordProcessorFactoryOpt: Option[IRecordProcessorFactory] = None,
+      executionContextExecutorService: Option[ExecutionContextExecutorService] = None
+  )(implicit ec: ExecutionContext): Source[Record, Future[Worker]] = {
+    withCheckpointWithWorker(
       checkWorkerPeriodicity,
-      recordProcessorF,
+      KCLSourceStage.newDefaultWorker(
+        kinesisClientLibConfiguration,
+        recordProcessorFactoryOpt,
+        executionContextExecutorService,
+        amazonKinesisOpt,
+        amazonDynamoDBOpt,
+        amazonCloudWatchOpt,
+        iMetricsFactoryOpt,
+        shardPrioritizationOpt
+      )
+    )
+  }
+
+  def withCheckpointWithWorker(
+      checkWorkerPeriodicity: FiniteDuration = 1 seconds,
+      workerF: WorkerF
+  )(implicit ec: ExecutionContext): Source[Record, Future[Worker]] =
+    withoutCheckpointWithWorker(
+      checkWorkerPeriodicity,
       workerF
     ).via(KCLFlow.ofCheckpoint())
 
   def withoutCheckpoint(
       kinesisClientLibConfiguration: KinesisClientLibConfiguration,
-      executionContextExecutorService: Option[ExecutionContextExecutorService] = None,
-      kinesisClient: Option[AmazonKinesis] = None,
-      dynamoDBClient: Option[AmazonDynamoDB] = None,
-      cloudWatchClient: Option[AmazonCloudWatch] = None,
-      metricsFactory: Option[IMetricsFactory] = None,
-      shardPrioritization: Option[ShardPrioritization] = None,
       checkWorkerPeriodicity: FiniteDuration = 1 seconds,
-      recordProcessorF: RecordProcessorF = KCLSourceStage.newDefaultRecordProcessor,
-      workerF: WorkerF = KCLSourceStage.newDefaultWorker
-  )(implicit ec: ExecutionContext): Source[CommittableRecord, Future[Worker]] =
-    Source.fromGraph(
-      new KCLSourceStage(
+      amazonKinesisOpt: Option[AmazonKinesis],
+      amazonDynamoDBOpt: Option[AmazonDynamoDB],
+      amazonCloudWatchOpt: Option[AmazonCloudWatch],
+      iMetricsFactoryOpt: Option[IMetricsFactory],
+      shardPrioritizationOpt: Option[ShardPrioritization],
+      recordProcessorFactoryOpt: Option[IRecordProcessorFactory],
+      executionContextExecutorService: Option[ExecutionContextExecutorService]
+  )(implicit ec: ExecutionContext): Source[CommittableRecord, Future[Worker]] = {
+    withoutCheckpointWithWorker(
+      checkWorkerPeriodicity,
+      KCLSourceStage.newDefaultWorker(
         kinesisClientLibConfiguration,
+        recordProcessorFactoryOpt,
         executionContextExecutorService,
-        kinesisClient,
-        dynamoDBClient,
-        cloudWatchClient,
-        metricsFactory,
-        shardPrioritization,
-        checkWorkerPeriodicity,
-        recordProcessorF,
-        workerF
+        amazonKinesisOpt,
+        amazonDynamoDBOpt,
+        amazonCloudWatchOpt,
+        iMetricsFactoryOpt,
+        shardPrioritizationOpt
       )
     )
+  }
+
+  def withoutCheckpointWithWorker(
+      checkWorkerPeriodicity: FiniteDuration = 1 seconds,
+      workerF: WorkerF
+  )(implicit ec: ExecutionContext): Source[CommittableRecord, Future[Worker]] =
+    Source.fromGraph(new KCLSourceStage(checkWorkerPeriodicity, workerF))
 
 }
