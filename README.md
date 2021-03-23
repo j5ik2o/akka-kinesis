@@ -1,6 +1,6 @@
 # akka-kinesis
 
-[![CircleCI](https://circleci.com/gh/j5ik2o/akka-kinesis/tree/master.svg?style=shield&circle-token=b2210c20c89219189c74380cc433a075d98cb1c9)](https://circleci.com/gh/j5ik2o/akka-kinesis/tree/master)
+[![CircleCI](https://circleci.com/gh/j5ik2o/akka-kinesis/tree/master.svg?style=svg)](https://circleci.com/gh/j5ik2o/akka-kinesis/tree/master)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.j5ik2o/akka-kinesis_2.13/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.github.j5ik2o/akka-kinesis_2.13)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
