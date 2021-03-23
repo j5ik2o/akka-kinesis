@@ -1,5 +1,5 @@
-val scala212Version = "2.12.10"
-val scala213Version = "2.13.1"
+val scala212Version = "2.12.13"
+val scala213Version = "2.13.5"
 
 def crossScalacOptions(scalaVersion: String): Seq[String] = CrossVersion.partialVersion(scalaVersion) match {
   case Some((2L, scalaMajor)) if scalaMajor >= 12 =>
@@ -68,9 +68,11 @@ lazy val baseSettings = Seq(
     )
 )
 
-val awsSdkVersion              = "1.11.788"
-val akkaVersion                = "2.6.8"
-val testcontainersScalaVersion = "0.36.1"
+val awsSdkVersion              = "1.11.980"
+val akkaVersion                = "2.6.13"
+val testcontainersScalaVersion = "0.39.3"
+val scalaTestVersion           = "3.2.6"
+val logbackVersion             = "1.2.3"
 
 val dependenciesCommonSettings = Seq(
   resolvers ++= Seq(
@@ -79,18 +81,15 @@ val dependenciesCommonSettings = Seq(
       Resolver.bintrayRepo("hseeberger", "maven")
     ),
   libraryDependencies ++= Seq(
-      "org.scalatest"     %% "scalatest"                       % "3.1.2" % Test,
-      "org.scalacheck"    %% "scalacheck"                      % "1.14.3" % Test,
-      "com.typesafe"      % "config"                           % "1.4.0",
-      "ch.qos.logback"    % "logback-classic"                  % "1.2.3",
       "com.typesafe.akka" %% "akka-slf4j"                      % akkaVersion,
-      "com.typesafe.akka" %% "akka-testkit"                    % akkaVersion % Test,
       "com.typesafe.akka" %% "akka-stream"                     % akkaVersion,
-      "com.typesafe.akka" %% "akka-stream-testkit"             % akkaVersion % Test,
-      "com.amazonaws"     % "aws-java-sdk-core"                % awsSdkVersion,
       "com.amazonaws"     % "aws-java-sdk-kinesis"             % awsSdkVersion,
-      "com.dimafeng"      %% "testcontainers-scala-scalatest"  % testcontainersScalaVersion,
-      "com.dimafeng"      %% "testcontainers-scala-localstack" % testcontainersScalaVersion
+      "com.dimafeng"      %% "testcontainers-scala-scalatest"  % testcontainersScalaVersion % Test,
+      "com.dimafeng"      %% "testcontainers-scala-localstack" % testcontainersScalaVersion % Test,
+      "org.scalatest"     %% "scalatest"                       % scalaTestVersion % Test,
+      "ch.qos.logback"    % "logback-classic"                  % logbackVersion % Test,
+      "com.typesafe.akka" %% "akka-testkit"                    % akkaVersion % Test,
+      "com.typesafe.akka" %% "akka-stream-testkit"             % akkaVersion % Test
     ),
   Test / fork := true,
   envVars in Test := Map("AWS_CBOR_DISABLE" -> "1")
@@ -101,7 +100,7 @@ val `akka-kinesis-kpl` = (project in file("akka-kinesis-kpl"))
   .settings(
     name := "akka-kinesis-kpl",
     libraryDependencies ++= Seq(
-        "com.amazonaws" % "amazon-kinesis-producer" % "0.14.1",
+        "com.amazonaws" % "amazon-kinesis-producer" % "0.14.6",
         "com.amazonaws" % "aws-java-sdk-cloudwatch" % awsSdkVersion % Test,
         "com.amazonaws" % "aws-java-sdk-dynamodb"   % awsSdkVersion % Test
       ),
@@ -113,7 +112,7 @@ val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
   .settings(
     name := "akka-kinesis-kcl",
     libraryDependencies ++= Seq(
-        "com.amazonaws"          % "amazon-kinesis-client"   % "1.11.2",
+        "com.amazonaws"          % "amazon-kinesis-client"   % "1.14.2",
         "org.scala-lang.modules" %% "scala-java8-compat"     % "0.9.1",
         "com.amazonaws"          % "aws-java-sdk-cloudwatch" % awsSdkVersion % Test,
         "com.amazonaws"          % "aws-java-sdk-dynamodb"   % awsSdkVersion % Test

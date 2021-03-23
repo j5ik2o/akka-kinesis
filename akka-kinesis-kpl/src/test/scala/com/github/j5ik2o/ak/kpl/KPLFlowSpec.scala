@@ -3,7 +3,6 @@ package com.github.j5ik2o.ak.kpl
 import java.nio.ByteBuffer
 import java.util.UUID
 import java.util.concurrent.TimeUnit
-
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{ Keep, Sink, Source }
 import akka.stream.{ ActorMaterializer, KillSwitches }
@@ -21,9 +20,11 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.should.Matchers
+import org.testcontainers.DockerClientFactory
 import org.testcontainers.containers.localstack.{ LocalStackContainer => JavaLocalStackContainer }
 import org.testcontainers.containers.wait.strategy.Wait
 
+import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.{ Duration, _ }
 import scala.util.{ Failure, Success, Try }
@@ -40,9 +41,10 @@ class KPLFlowSpec
   System.setProperty(SDKGlobalConfiguration.AWS_CBOR_DISABLE_SYSTEM_PROPERTY, "true")
   System.setProperty(SDKGlobalConfiguration.DISABLE_CERT_CHECKING_SYSTEM_PROPERTY, "true")
 
-  val services = Seq(JavaLocalStackContainer.Service.KINESIS, JavaLocalStackContainer.Service.CLOUDWATCH)
+  val services: Seq[JavaLocalStackContainer.Service] =
+    Seq(JavaLocalStackContainer.Service.KINESIS, JavaLocalStackContainer.Service.CLOUDWATCH)
 
-  val localStack = new GenericContainer(
+  val localStack: GenericContainer = new GenericContainer(
     dockerImage = "localstack/localstack:0.9.5",
     exposedPorts = services.map(_.getPort),
     env = Map(
@@ -60,9 +62,10 @@ class KPLFlowSpec
   var awsKinesisClient: AmazonKinesis                            = _
   var kinesisProducerConfiguration: KinesisProducerConfiguration = _
 
-  val streamName = sys.env.getOrElse("STREAM_NAME", "kpl-flow-spec") + UUID.randomUUID().toString
+  val streamName: String = sys.env.getOrElse("STREAM_NAME", "kpl-flow-spec") + UUID.randomUUID().toString
 
-  def waitStreamToCreated(streamName: String, waitDuration: Duration = 1 seconds): Try[Unit] = {
+  def waitStreamToCreated(streamName: String, waitDuration: Duration = 1.seconds): Try[Unit] = {
+    @tailrec
     def go: Try[Unit] = {
       Try { awsKinesisClient.describeStream(streamName) } match {
         case Success(result) if result.getStreamDescription.getStreamStatus == "ACTIVE" =>
@@ -96,6 +99,7 @@ class KPLFlowSpec
 
   override def afterStart(): Unit = {
     val credentialsProvider = new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x"))
+    val host                = DockerClientFactory.instance().dockerHostIpAddress()
     val kinesisPort         = localStack.container.getMappedPort(JavaLocalStackContainer.Service.KINESIS.getPort)
     val cloudwatchPort      = localStack.container.getMappedPort(JavaLocalStackContainer.Service.CLOUDWATCH.getPort)
 
@@ -105,7 +109,7 @@ class KPLFlowSpec
       .standard()
       .withCredentials(credentialsProvider)
       .withEndpointConfiguration(
-        new EndpointConfiguration(s"https://127.0.0.1:$kinesisPort", Regions.AP_NORTHEAST_1.getName)
+        new EndpointConfiguration(s"https://$host:$kinesisPort", Regions.AP_NORTHEAST_1.getName)
       )
       .build()
 
@@ -115,9 +119,9 @@ class KPLFlowSpec
     kinesisProducerConfiguration = new KinesisProducerConfiguration()
       .setCredentialsProvider(credentialsProvider)
       .setRegion(Regions.AP_NORTHEAST_1.getName)
-      .setKinesisEndpoint("127.0.0.1")
+      .setKinesisEndpoint(host)
       .setKinesisPort(kinesisPort.toLong)
-      .setCloudwatchEndpoint("127.0.0.1")
+      .setCloudwatchEndpoint(host)
       .setCloudwatchPort(cloudwatchPort.toLong)
       .setCredentialsRefreshDelay(100)
       .setVerifyCertificate(false)

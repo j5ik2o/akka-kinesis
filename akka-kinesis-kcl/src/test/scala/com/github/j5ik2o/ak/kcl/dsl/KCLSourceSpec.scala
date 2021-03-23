@@ -1,24 +1,20 @@
 package com.github.j5ik2o.ak.kcl.dsl
 
-import java.net.InetAddress
-import java.nio.ByteBuffer
-import java.nio.charset.StandardCharsets
-import java.util.UUID
-
 import akka.actor.ActorSystem
 import akka.stream.KillSwitches
 import akka.stream.scaladsl.{ Keep, Sink }
 import akka.testkit.TestKit
-import com.amazonaws.SDKGlobalConfiguration
 import com.amazonaws.services.cloudwatch.{ AmazonCloudWatch, AmazonCloudWatchClientBuilder }
 import com.amazonaws.services.dynamodbv2.{ AmazonDynamoDBAsync, AmazonDynamoDBAsyncClientBuilder }
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{
   InitialPositionInStream,
-  KinesisClientLibConfiguration
+  KinesisClientLibConfiguration,
+  SimpleRecordsFetcherFactory
 }
 import com.amazonaws.services.kinesis.metrics.impl.NullMetricsFactory
 import com.amazonaws.services.kinesis.model.{ PutRecordRequest, Record, ResourceNotFoundException }
 import com.amazonaws.services.kinesis.{ AmazonKinesis, AmazonKinesisClientBuilder }
+import com.amazonaws.{ ClientConfiguration, SDKGlobalConfiguration }
 import com.dimafeng.testcontainers.{ Container, ForAllTestContainer, LocalStackContainer }
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.freespec.AnyFreeSpecLike
@@ -26,6 +22,11 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.testcontainers.containers.localstack.{ LocalStackContainer => JavaLocalStackContainer }
 
+import java.net.InetAddress
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
+import java.util.UUID
+import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.{ Duration, _ }
 import scala.util.{ Failure, Success, Try }
@@ -39,9 +40,10 @@ class KCLSourceSpec
     with Eventually {
   System.setProperty(SDKGlobalConfiguration.AWS_CBOR_DISABLE_SYSTEM_PROPERTY, "true")
 
-  implicit val defaultPatience = PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
+  implicit val defaultPatience: PatienceConfig =
+    PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
 
-  val localStack = LocalStackContainer(
+  val localStack: LocalStackContainer = LocalStackContainer(
     tag = "0.9.5",
     services = Seq(
       JavaLocalStackContainer.Service.DYNAMODB,
@@ -50,9 +52,9 @@ class KCLSourceSpec
     )
   )
 
-  val applicationName = "kcl-source-spec"
-  val streamName      = sys.env.getOrElse("STREAM_NAME", "kcl-flow-spec") + UUID.randomUUID().toString
-  val workerId        = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID()
+  val applicationName: String = "kcl-source-spec"
+  val streamName: String      = sys.env.getOrElse("STREAM_NAME", "kcl-flow-spec") + UUID.randomUUID().toString
+  val workerId: String        = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID()
 
   override def container: Container = localStack
 
@@ -90,10 +92,35 @@ class KCLSourceSpec
     kinesisClientLibConfiguration = new KinesisClientLibConfiguration(
       applicationName,
       streamName,
+      null,
+      null,
+      InitialPositionInStream.TRIM_HORIZON,
       credentialsProvider,
-      workerId
+      credentialsProvider,
+      credentialsProvider,
+      KinesisClientLibConfiguration.DEFAULT_FAILOVER_TIME_MILLIS,
+      workerId,
+      KinesisClientLibConfiguration.DEFAULT_MAX_RECORDS,
+      KinesisClientLibConfiguration.DEFAULT_IDLETIME_BETWEEN_READS_MILLIS,
+      KinesisClientLibConfiguration.DEFAULT_DONT_CALL_PROCESS_RECORDS_FOR_EMPTY_RECORD_LIST,
+      KinesisClientLibConfiguration.DEFAULT_PARENT_SHARD_POLL_INTERVAL_MILLIS,
+      KinesisClientLibConfiguration.DEFAULT_SHARD_SYNC_INTERVAL_MILLIS,
+      KinesisClientLibConfiguration.DEFAULT_CLEANUP_LEASES_UPON_SHARDS_COMPLETION,
+      new ClientConfiguration(),
+      new ClientConfiguration(),
+      new ClientConfiguration(),
+      KinesisClientLibConfiguration.DEFAULT_TASK_BACKOFF_TIME_MILLIS,
+      KinesisClientLibConfiguration.DEFAULT_METRICS_BUFFER_TIME_MILLIS,
+      KinesisClientLibConfiguration.DEFAULT_METRICS_MAX_QUEUE_SIZE,
+      KinesisClientLibConfiguration.DEFAULT_VALIDATE_SEQUENCE_NUMBER_BEFORE_CHECKPOINTING,
+      null,
+      KinesisClientLibConfiguration.DEFAULT_SHUTDOWN_GRACE_MILLIS,
+      KinesisClientLibConfiguration.DEFAULT_DDB_BILLING_MODE,
+      new SimpleRecordsFetcherFactory(),
+      java.time.Duration.ofMinutes(1).toMillis,
+      java.time.Duration.ofMinutes(5).toMillis,
+      java.time.Duration.ofMinutes(30).toMillis
     ).withTableName(streamName)
-      .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
 
   }
 
@@ -102,7 +129,8 @@ class KCLSourceSpec
     awsDynamoDBClient.deleteTable(streamName)
   }
 
-  def waitStreamToCreated(streamName: String, waitDuration: Duration = 1 seconds): Try[Unit] = {
+  def waitStreamToCreated(streamName: String, waitDuration: Duration = 1.seconds): Try[Unit] = {
+    @tailrec
     def go: Try[Unit] = {
       Try { awsKinesisClient.describeStream(streamName) } match {
         case Success(result) if result.getStreamDescription.getStreamStatus == "ACTIVE" =>
@@ -139,16 +167,20 @@ class KCLSourceSpec
   "KCLSourceSpec" - {
     "should be able to consume message" in {
       var result: Record = null
-      val (sw, future) = KCLSource(
-        kinesisClientLibConfiguration,
-        amazonKinesisOpt = Some(awsKinesisClient),
-        amazonDynamoDBOpt = Some(awsDynamoDBClient),
-        amazonCloudWatchOpt = Some(awsCloudWatch),
-        iMetricsFactoryOpt = Some(new NullMetricsFactory),
-        recordProcessorFactoryOpt = None,
-        executionContextExecutorService = None
-      ).viaMat(KillSwitches.single)(Keep.right)
-        .toMat(Sink.foreach { msg: Record => result = msg })(Keep.both)
+      val (sw, future) = KCLSource
+        .withoutCheckpoint(
+          kinesisClientLibConfiguration,
+          amazonKinesisOpt = Some(awsKinesisClient),
+          amazonDynamoDBOpt = Some(awsDynamoDBClient),
+          amazonCloudWatchOpt = Some(awsCloudWatch),
+          iMetricsFactoryOpt = Some(new NullMetricsFactory)
+        ).viaMat(KillSwitches.single)(Keep.right)
+        .map { msg =>
+          result = msg.record
+          msg
+        }
+        .via(KCLFlow.ofCheckpoint())
+        .toMat(Sink.ignore)(Keep.both)
         .run()
 
       val text = "abc"
