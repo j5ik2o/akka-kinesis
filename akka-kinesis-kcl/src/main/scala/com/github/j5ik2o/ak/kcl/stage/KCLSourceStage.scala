@@ -2,7 +2,6 @@ package com.github.j5ik2o.ak.kcl.stage
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-
 import akka.stream.stage.{ AsyncCallback, _ }
 import akka.stream.{ Attributes, Outlet, SourceShape }
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch
@@ -12,16 +11,23 @@ import com.amazonaws.services.kinesis.clientlibrary.interfaces.IRecordProcessorC
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{ IRecordProcessor, IRecordProcessorFactory }
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{
   KinesisClientLibConfiguration,
+  LeaderDecider,
+  LeaseCleanupValidator,
   ShardPrioritization,
+  ShardSyncer,
   ShutdownReason,
-  Worker
+  Worker,
+  WorkerStateChangeListener
 }
+import com.amazonaws.services.kinesis.clientlibrary.proxies.IKinesisProxy
 import com.amazonaws.services.kinesis.clientlibrary.types.{
   ExtendedSequenceNumber,
   InitializationInput,
   ProcessRecordsInput,
   ShutdownInput
 }
+import com.amazonaws.services.kinesis.leases.impl.KinesisClientLease
+import com.amazonaws.services.kinesis.leases.interfaces.{ ILeaseManager, ILeaseRenewer, ILeaseTaker, LeaseSelector }
 import com.amazonaws.services.kinesis.metrics.interfaces.IMetricsFactory
 import com.amazonaws.services.kinesis.model.Record
 import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.{ KCLMaterializedValue, RecordProcessorF, RecordSet, WorkerF }
@@ -77,12 +83,20 @@ object KCLSourceStage {
   def newDefaultWorker(
       kinesisClientLibConfiguration: KinesisClientLibConfiguration,
       recordProcessorFactoryOpt: Option[IRecordProcessorFactory],
-      executionContextExecutorService: Option[ExecutionContextExecutorService],
       amazonKinesisOpt: Option[AmazonKinesis],
       amazonDynamoDBOpt: Option[AmazonDynamoDB],
       amazonCloudWatchOpt: Option[AmazonCloudWatch],
       iMetricsFactoryOpt: Option[IMetricsFactory],
-      shardPrioritizationOpt: Option[ShardPrioritization]
+      leaseManager: Option[ILeaseManager[KinesisClientLease]],
+      executionContextExecutorService: Option[ExecutionContextExecutorService],
+      shardPrioritizationOpt: Option[ShardPrioritization],
+      kinesisProxy: Option[IKinesisProxy],
+      workerStateChangeListener: Option[WorkerStateChangeListener],
+      leaseSelector: Option[LeaseSelector[KinesisClientLease]],
+      leaderDecider: Option[LeaderDecider],
+      leaseTaker: Option[ILeaseTaker[KinesisClientLease]],
+      leaseRenewer: Option[ILeaseRenewer[KinesisClientLease]],
+      shardSyncer: Option[ShardSyncer]
   ): WorkerF = {
     (
         onInitializeCallback: AsyncCallback[InitializationInput],
@@ -97,12 +111,20 @@ object KCLSourceStage {
             )
           )
           .config(kinesisClientLibConfiguration)
-          .execService(executionContextExecutorService.orNull)
           .kinesisClient(amazonKinesisOpt.orNull)
           .dynamoDBClient(amazonDynamoDBOpt.orNull)
           .cloudWatchClient(amazonCloudWatchOpt.orNull)
           .metricsFactory(iMetricsFactoryOpt.orNull)
+          .leaseManager(leaseManager.orNull)
+          .execService(executionContextExecutorService.orNull)
           .shardPrioritization(shardPrioritizationOpt.orNull)
+          .kinesisProxy(kinesisProxy.orNull)
+          .workerStateChangeListener(workerStateChangeListener.orNull)
+          .leaseSelector(leaseSelector.orNull)
+          .leaderDecider(leaderDecider.orNull)
+          .leaseTaker(leaseTaker.orNull)
+          .leaseRenewer(leaseRenewer.orNull)
+          .shardSyncer(shardSyncer.orNull)
           .build()
       }
   }
