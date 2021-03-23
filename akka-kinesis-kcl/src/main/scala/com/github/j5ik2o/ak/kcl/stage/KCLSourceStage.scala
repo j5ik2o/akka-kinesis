@@ -180,17 +180,6 @@ object KCLSourceStage {
   }
 }
 
-/*
-
-    kinesisClientLibConfiguration: KinesisClientLibConfiguration,
-    executionContextExecutorService: Option[ExecutionContextExecutorService] = None,
-    kinesisClient: Option[AmazonKinesis] = None,
-    dynamoDBClient: Option[AmazonDynamoDB] = None,
-    cloudWatchClient: Option[AmazonCloudWatch] = None,
-    metricsFactory: Option[IMetricsFactory] = None,
-    shardPrioritization: Option[ShardPrioritization] = None,
-    checkWorkerPeriodicity: FiniteDuration = 1 seconds,
- */
 class KCLSourceStage(
     checkWorkerPeriodicity: FiniteDuration = 1 seconds,
     workerF: WorkerF
