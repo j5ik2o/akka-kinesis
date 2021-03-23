@@ -1,6 +1,6 @@
 # akka-kinesis
 
-[![CircleCI](https://circleci.com/gh/j5ik2o/akka-kinesis/tree/master.svg?style=shield&circle-token=9f6f53d09f0fb87ee8ea81246e69683d668291cd)](https://circleci.com/gh/j5ik2o/akka-kinesis/tree/master)
+[![CircleCI](https://circleci.com/gh/j5ik2o/akka-kinesis/tree/master.svg?style=shield&circle-token=b2210c20c89219189c74380cc433a075d98cb1c9)](https://circleci.com/gh/j5ik2o/akka-kinesis/tree/master)
 
 akka-kinesis supports Akka commponets for AWS Kinesis.
 
