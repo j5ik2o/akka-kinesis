@@ -36,7 +36,7 @@ import scala.collection.JavaConverters._
 import scala.collection.immutable.Queue
 import scala.concurrent.duration.{ FiniteDuration, _ }
 import scala.concurrent.{ ExecutionContext, ExecutionContextExecutorService, Future, Promise }
-import scala.util.control.NoStackTrace
+import scala.util.control.{ NoStackTrace, NonFatal }
 import scala.util.{ Failure, Success, Try }
 
 sealed trait KinesisWorkerSourceError extends NoStackTrace
@@ -59,7 +59,7 @@ object KCLSourceStage {
       cacheEntryTime: Instant,
       cacheExitTIme: Instant,
       timeSpentInCache: FiniteDuration,
-      records: Seq[Record],
+      records: Vector[Record],
       millisBehindLatest: Long,
       recordProcessorCheckPointer: IRecordProcessorCheckpointer
   ) {
@@ -82,7 +82,6 @@ object KCLSourceStage {
 
   def newDefaultWorker(
       kinesisClientLibConfiguration: KinesisClientLibConfiguration,
-      recordProcessorFactoryOpt: Option[IRecordProcessorFactory],
       amazonKinesisOpt: Option[AmazonKinesis],
       amazonDynamoDBOpt: Option[AmazonDynamoDB],
       amazonCloudWatchOpt: Option[AmazonCloudWatch],
@@ -96,7 +95,8 @@ object KCLSourceStage {
       leaderDecider: Option[LeaderDecider],
       leaseTaker: Option[ILeaseTaker[KinesisClientLease]],
       leaseRenewer: Option[ILeaseRenewer[KinesisClientLease]],
-      shardSyncer: Option[ShardSyncer]
+      shardSyncer: Option[ShardSyncer],
+      recordProcessorFactoryOpt: Option[IRecordProcessorFactory]
   ): WorkerF = {
     (
         onInitializeCallback: AsyncCallback[InitializationInput],
@@ -105,11 +105,6 @@ object KCLSourceStage {
     ) =>
       {
         new Worker.Builder()
-          .recordProcessorFactory(
-            recordProcessorFactoryOpt.getOrElse(
-              newRecordProcessorFactory(onInitializeCallback, onRecordCallback, onShutdownCallback)
-            )
-          )
           .config(kinesisClientLibConfiguration)
           .kinesisClient(amazonKinesisOpt.orNull)
           .dynamoDBClient(amazonDynamoDBOpt.orNull)
@@ -125,6 +120,11 @@ object KCLSourceStage {
           .leaseTaker(leaseTaker.orNull)
           .leaseRenewer(leaseRenewer.orNull)
           .shardSyncer(shardSyncer.orNull)
+          .recordProcessorFactory(
+            recordProcessorFactoryOpt.getOrElse(
+              newRecordProcessorFactory(onInitializeCallback, onRecordCallback, onShutdownCallback)
+            )
+          )
           .build()
       }
   }
@@ -181,7 +181,7 @@ object KCLSourceStage {
 }
 
 class KCLSourceStage(
-    checkWorkerPeriodicity: FiniteDuration = 1 seconds,
+    checkWorkerPeriodicity: FiniteDuration = 1.seconds,
     workerF: WorkerF
 )(implicit ec: ExecutionContext)
     extends GraphStageWithMaterializedValue[SourceShape[CommittableRecord], Future[Worker]] {
@@ -201,26 +201,24 @@ class KCLSourceStage(
       private var buffer: Queue[RecordSet] = Queue.empty[RecordSet]
 
       private val onInitializeCallback: AsyncCallback[InitializationInput] = getAsyncCallback { initializationInput =>
-        log.info(
-          s"shardId = ${initializationInput.getShardId}, extendedSequenceNumber = ${initializationInput.getExtendedSequenceNumber}, pendingCheckpointSequenceNumber = ${initializationInput.getPendingCheckpointSequenceNumber}"
-        )
+        log.debug(s"onInitializeCallback: initializationInput = $initializationInput")
       }
 
       private val onRecordSetCallback: AsyncCallback[RecordSet] = getAsyncCallback { recordSet =>
+        log.debug(s"onRecordSetCallback: recordSet = $recordSet")
         buffer = buffer.enqueue(recordSet)
         tryToProduce()
       }
 
       private val onShutdownCallback: AsyncCallback[ShutdownInput] = getAsyncCallback { shutdownInput =>
-        log.debug("shutdownInput.getShutdownReason = {}", shutdownInput.getShutdownReason)
+        log.debug("onShutdownCallback: shutdownInput = {}", shutdownInput)
         if (shutdownInput.getShutdownReason == ShutdownReason.TERMINATE) {
-          Try {
+          try {
             shutdownInput.getCheckpointer.checkpoint()
-          } match {
-            case Success(_) =>
-              log.debug("when shutdown, checkpoint is success!")
-            case Failure(ex: Throwable) =>
-              log.error("when shutdown, checkpoint is failure!!!", ex)
+            log.debug("onShutdownCallback: checkpoint is success!")
+          } catch {
+            case NonFatal(ex: Throwable) =>
+              log.error("onShutdownCallback: checkpoint is failure!!!", ex)
               fail(out, ex)
           }
         }
@@ -230,24 +228,29 @@ class KCLSourceStage(
         if (buffer.nonEmpty && isAvailable(out)) {
           val (head, tail) = buffer.dequeue
           buffer = tail
-          emitMultiple(
-            out,
-            head.records.map { v =>
-              new CommittableRecord(
-                shardId = head.shardId,
-                recordProcessorStartingSequenceNumber = head.extendedSequenceNumber,
-                millisBehindLatest = head.millisBehindLatest,
-                v,
-                head.recordProcessor,
-                head.recordProcessorCheckPointer
-              )
-            }.toList
-          )
+          val records = head.records.map { record: Record =>
+            new CommittableRecord(
+              shardId = head.shardId,
+              recordProcessorStartingSequenceNumber = head.extendedSequenceNumber,
+              millisBehindLatest = head.millisBehindLatest,
+              record,
+              head.recordProcessor,
+              head.recordProcessorCheckPointer
+            )
+          }
+          emitMultiple(out, records)
+          log.debug("tryToProduce: emitMultiple: records = {}", records)
         }
 
       override protected def onTimer(timerKey: Any): Unit = {
-        if (worker.hasGracefulShutdownStarted && isAvailable(out)) {
-          failStage(WorkerUnexpectedShutdown)
+        timerKey match {
+          case "check-worker-shutdown" =>
+            if (worker.hasGracefulShutdownStarted && isAvailable(out)) {
+              log.warning(s"onTimer($timerKey): failStage: worker unexpected shutdown")
+              failStage(WorkerUnexpectedShutdown)
+            }
+          case _ =>
+            throw new IllegalStateException(s"Invalid timerKey: timerKey = ${timerKey.toString}")
         }
       }
 
@@ -259,7 +262,7 @@ class KCLSourceStage(
           ec.execute(worker)
           workerPromise.success(worker)
         } catch {
-          case ex: Exception =>
+          case NonFatal(ex) =>
             workerPromise.failure(ex)
             throw ex
         }

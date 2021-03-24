@@ -8,14 +8,14 @@ import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.RecordProcessor
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-class CommittableRecord(
+final class CommittableRecord(
     val shardId: String,
     val recordProcessorStartingSequenceNumber: ExtendedSequenceNumber,
     val millisBehindLatest: Long,
     val record: Record,
     recordProcessor: RecordProcessor,
     checkPointer: IRecordProcessorCheckpointer
-)(implicit executor: ExecutionContext) {
+) {
 
   val sequenceNumber: String = record.getSequenceNumber
 
@@ -25,7 +25,7 @@ class CommittableRecord(
   def canBeCheckpointed(): Boolean =
     recordProcessorShutdownReason().isEmpty
 
-  def checkpoint(): Future[Unit] =
+  def checkpoint()(implicit executor: ExecutionContext): Future[Unit] =
     Future(checkPointer.checkpoint(record))
 
 }

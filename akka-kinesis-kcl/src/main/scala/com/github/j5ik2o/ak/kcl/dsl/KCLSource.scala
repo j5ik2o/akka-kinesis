@@ -29,7 +29,6 @@ object KCLSource {
   def apply(
       kinesisClientLibConfiguration: KinesisClientLibConfiguration,
       checkWorkerPeriodicity: FiniteDuration = 1.seconds,
-      recordProcessorFactoryOpt: Option[IRecordProcessorFactory] = None,
       amazonKinesisOpt: Option[AmazonKinesis] = None,
       amazonDynamoDBOpt: Option[AmazonDynamoDB] = None,
       amazonCloudWatchOpt: Option[AmazonCloudWatch] = None,
@@ -43,13 +42,13 @@ object KCLSource {
       leaderDeciderOpt: Option[LeaderDecider] = None,
       leaseTakerOpt: Option[ILeaseTaker[KinesisClientLease]] = None,
       leaseRenewerOpt: Option[ILeaseRenewer[KinesisClientLease]] = None,
-      shardSyncerOpt: Option[ShardSyncer] = None
+      shardSyncerOpt: Option[ShardSyncer] = None,
+      recordProcessorFactoryOpt: Option[IRecordProcessorFactory] = None
   )(implicit ec: ExecutionContext): Source[Record, Future[Worker]] = {
     ofCustomWorker(
       checkWorkerPeriodicity,
       KCLSourceStage.newDefaultWorker(
         kinesisClientLibConfiguration,
-        recordProcessorFactoryOpt,
         amazonKinesisOpt,
         amazonDynamoDBOpt,
         amazonCloudWatchOpt,
@@ -63,7 +62,8 @@ object KCLSource {
         leaderDeciderOpt,
         leaseTakerOpt,
         leaseRenewerOpt,
-        shardSyncerOpt
+        shardSyncerOpt,
+        recordProcessorFactoryOpt
       )
     )
   }
@@ -80,7 +80,6 @@ object KCLSource {
   def withoutCheckpoint(
       kinesisClientLibConfiguration: KinesisClientLibConfiguration,
       checkWorkerPeriodicity: FiniteDuration = 1.seconds,
-      recordProcessorFactoryOpt: Option[IRecordProcessorFactory] = None,
       amazonKinesisOpt: Option[AmazonKinesis] = None,
       amazonDynamoDBOpt: Option[AmazonDynamoDB] = None,
       amazonCloudWatchOpt: Option[AmazonCloudWatch] = None,
@@ -94,13 +93,13 @@ object KCLSource {
       leaderDeciderOpt: Option[LeaderDecider] = None,
       leaseTakerOpt: Option[ILeaseTaker[KinesisClientLease]] = None,
       leaseRenewerOpt: Option[ILeaseRenewer[KinesisClientLease]] = None,
-      shardSyncerOpt: Option[ShardSyncer] = None
+      shardSyncerOpt: Option[ShardSyncer] = None,
+      recordProcessorFactoryOpt: Option[IRecordProcessorFactory] = None
   )(implicit ec: ExecutionContext): Source[CommittableRecord, Future[Worker]] = {
     ofCustomWorkerWithoutCheckpoint(
       checkWorkerPeriodicity,
       KCLSourceStage.newDefaultWorker(
         kinesisClientLibConfiguration,
-        recordProcessorFactoryOpt,
         amazonKinesisOpt,
         amazonDynamoDBOpt,
         amazonCloudWatchOpt,
@@ -114,13 +113,14 @@ object KCLSource {
         leaderDeciderOpt,
         leaseTakerOpt,
         leaseRenewerOpt,
-        shardSyncerOpt
+        shardSyncerOpt,
+        recordProcessorFactoryOpt
       )
     )
   }
 
   def ofCustomWorkerWithoutCheckpoint(
-      checkWorkerPeriodicity: FiniteDuration = 1 seconds,
+      checkWorkerPeriodicity: FiniteDuration = 1.seconds,
       workerF: WorkerF
   )(implicit ec: ExecutionContext): Source[CommittableRecord, Future[Worker]] =
     Source.fromGraph(new KCLSourceStage(checkWorkerPeriodicity, workerF))
