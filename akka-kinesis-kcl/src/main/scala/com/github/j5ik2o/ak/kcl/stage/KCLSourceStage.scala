@@ -211,7 +211,7 @@ class KCLSourceStage(
       }
 
       private val onShutdownCallback: AsyncCallback[ShutdownInput] = getAsyncCallback { shutdownInput =>
-        log.debug("onShutdownCallback: shutdownInput = {}", shutdownInput)
+        log.debug(s"onShutdownCallback: shutdownInput = $shutdownInput")
         if (shutdownInput.getShutdownReason == ShutdownReason.TERMINATE) {
           try {
             shutdownInput.getCheckpointer.checkpoint()
@@ -239,7 +239,7 @@ class KCLSourceStage(
             )
           }
           emitMultiple(out, records)
-          log.debug("tryToProduce: emitMultiple: records = {}", records)
+          log.debug(s"tryToProduce: emitMultiple: records = $records")
         }
 
       override protected def onTimer(timerKey: Any): Unit = {
@@ -257,7 +257,7 @@ class KCLSourceStage(
       override def preStart(): Unit = {
         try {
           worker = workerF(onInitializeCallback, onRecordSetCallback, onShutdownCallback)
-          log.info(s"Created Worker instance {} of application {}", worker, worker.getApplicationName)
+          log.info(s"Created Worker instance: worker = ${worker.getApplicationName}")
           scheduleAtFixedRate("check-worker-shutdown", checkWorkerPeriodicity, checkWorkerPeriodicity)
           ec.execute(worker)
           workerPromise.success(worker)
@@ -270,8 +270,8 @@ class KCLSourceStage(
 
       override def postStop(): Unit = {
         buffer = Queue.empty[RecordSet]
-        worker.shutdown()
-        log.info(s"Shut down Worker instance {} of application {}", worker, worker.getApplicationName)
+        worker.startGracefulShutdown().get()
+        log.info(s"Shut down Worker instance: worker = ${worker.getApplicationName}")
       }
 
       setHandler(out, new OutHandler {
