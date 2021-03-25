@@ -68,7 +68,7 @@ lazy val baseSettings = Seq(
     )
 )
 
-val awsSdkVersion              = "1.11.980"
+val awsSdkVersion              = "1.11.728"
 val akkaVersion                = "2.6.13"
 val testcontainersScalaVersion = "0.39.3"
 val scalaTestVersion           = "3.2.6"
@@ -112,15 +112,30 @@ val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
   .settings(
     name := "akka-kinesis-kcl",
     libraryDependencies ++= Seq(
-        "com.amazonaws"          % "amazon-kinesis-client"   % "1.14.2",
-        "org.scala-lang.modules" %% "scala-java8-compat"     % "0.9.1",
-        "com.amazonaws"          % "aws-java-sdk-cloudwatch" % awsSdkVersion % Test,
-        "com.amazonaws"          % "aws-java-sdk-dynamodb"   % awsSdkVersion % Test
+        "com.iheart"             %% "ficus"                           % "1.5.0",
+        "com.amazonaws"          % "amazon-kinesis-client"            % "1.14.2",
+        "org.scala-lang.modules" %% "scala-java8-compat"              % "0.9.1",
+        "com.amazonaws"          % "dynamodb-streams-kinesis-adapter" % "1.5.1" % Test,
+        "com.amazonaws"          % "aws-java-sdk-cloudwatch"          % awsSdkVersion % Test,
+        "com.amazonaws"          % "aws-java-sdk-dynamodb"            % awsSdkVersion % Test
       ),
     parallelExecution in Test := false
   )
 
+val `akka-kinesis-kcl-dynamodb-streams` = (project in file("akka-kinesis-kcl-dynamodb-streams"))
+  .settings(baseSettings, dependenciesCommonSettings, deploySettings)
+  .settings(
+    name := "akka-kinesis-kcl",
+    libraryDependencies ++= Seq(
+        "com.amazonaws" % "aws-java-sdk-dynamodb"            % awsSdkVersion,
+        "com.amazonaws" % "dynamodb-streams-kinesis-adapter" % "1.5.1",
+        "com.amazonaws" % "aws-java-sdk-cloudwatch"          % awsSdkVersion % Test,
+        "com.amazonaws" % "aws-java-sdk-dynamodb"            % awsSdkVersion % Test
+      ),
+    parallelExecution in Test := false
+  ).dependsOn(`akka-kinesis-kcl` % "compile->compile;test->test")
+
 val `akka-kinesis-root` = (project in file("."))
   .settings(baseSettings, deploySettings)
   .settings(name := "akka-kinesis-root")
-  .aggregate(`akka-kinesis-kpl`, `akka-kinesis-kcl`)
+  .aggregate(`akka-kinesis-kpl`, `akka-kinesis-kcl`, `akka-kinesis-kcl-dynamodb-streams`)
