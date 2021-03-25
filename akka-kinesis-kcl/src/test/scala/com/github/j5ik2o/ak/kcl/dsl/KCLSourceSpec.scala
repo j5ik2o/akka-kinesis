@@ -16,6 +16,7 @@ import com.amazonaws.services.kinesis.model.{ PutRecordRequest, Record, Resource
 import com.amazonaws.services.kinesis.{ AmazonKinesis, AmazonKinesisClientBuilder }
 import com.amazonaws.{ ClientConfiguration, SDKGlobalConfiguration }
 import com.dimafeng.testcontainers.{ Container, ForAllTestContainer, LocalStackContainer }
+import com.github.j5ik2o.ak.kcl.util.KCLConfiguration
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.should.Matchers
@@ -32,7 +33,7 @@ import scala.concurrent.duration.{ Duration, _ }
 import scala.util.{ Failure, Success, Try }
 
 class KCLSourceSpec
-    extends TestKit(ActorSystem("KPLFlowSpec"))
+    extends TestKit(ActorSystem("KCLSourceSpec"))
     with AnyFreeSpecLike
     with Matchers
     with ScalaFutures
@@ -89,44 +90,19 @@ class KCLSourceSpec
     assert(awsKinesisClient.createStream(streamName, 1).getSdkHttpMetadata.getHttpStatusCode == 200)
     waitStreamToCreated(streamName)
 
-    kinesisClientLibConfiguration = new KinesisClientLibConfiguration(
+    kinesisClientLibConfiguration = KCLConfiguration.fromConfig(
+      system.settings.config,
       applicationName,
+      UUID.randomUUID(),
       streamName,
-      null,
-      null,
-      InitialPositionInStream.TRIM_HORIZON,
       credentialsProvider,
       credentialsProvider,
       credentialsProvider,
-      KinesisClientLibConfiguration.DEFAULT_FAILOVER_TIME_MILLIS,
-      workerId,
-      KinesisClientLibConfiguration.DEFAULT_MAX_RECORDS,
-      KinesisClientLibConfiguration.DEFAULT_IDLETIME_BETWEEN_READS_MILLIS,
-      KinesisClientLibConfiguration.DEFAULT_DONT_CALL_PROCESS_RECORDS_FOR_EMPTY_RECORD_LIST,
-      KinesisClientLibConfiguration.DEFAULT_PARENT_SHARD_POLL_INTERVAL_MILLIS,
-      KinesisClientLibConfiguration.DEFAULT_SHARD_SYNC_INTERVAL_MILLIS,
-      KinesisClientLibConfiguration.DEFAULT_CLEANUP_LEASES_UPON_SHARDS_COMPLETION,
-      new ClientConfiguration(),
-      new ClientConfiguration(),
-      new ClientConfiguration(),
-      KinesisClientLibConfiguration.DEFAULT_TASK_BACKOFF_TIME_MILLIS,
-      KinesisClientLibConfiguration.DEFAULT_METRICS_BUFFER_TIME_MILLIS,
-      KinesisClientLibConfiguration.DEFAULT_METRICS_MAX_QUEUE_SIZE,
-      KinesisClientLibConfiguration.DEFAULT_VALIDATE_SEQUENCE_NUMBER_BEFORE_CHECKPOINTING,
-      null,
-      KinesisClientLibConfiguration.DEFAULT_SHUTDOWN_GRACE_MILLIS,
-      KinesisClientLibConfiguration.DEFAULT_DDB_BILLING_MODE,
-      new SimpleRecordsFetcherFactory(),
-      java.time.Duration.ofMinutes(1).toMillis,
-      java.time.Duration.ofMinutes(5).toMillis,
-      java.time.Duration.ofMinutes(30).toMillis
-    ).withTableName(streamName)
+      configOverrides = Some(
+        KCLConfiguration.ConfigOverrides(positionInStreamOpt = Some(InitialPositionInStream.TRIM_HORIZON))
+      )
+    )
 
-  }
-
-  override def beforeStop(): Unit = {
-    awsKinesisClient.deleteStream(streamName)
-    awsDynamoDBClient.deleteTable(streamName)
   }
 
   def waitStreamToCreated(streamName: String, waitDuration: Duration = 1.seconds): Try[Unit] = {
