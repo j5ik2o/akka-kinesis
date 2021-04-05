@@ -115,7 +115,7 @@ val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
         "com.iheart"             %% "ficus"                           % "1.5.0",
         "com.amazonaws"          % "amazon-kinesis-client"            % "1.14.2",
         "org.scala-lang.modules" %% "scala-java8-compat"              % "0.9.1",
-        "com.amazonaws"          % "dynamodb-streams-kinesis-adapter" % "1.5.1" % Test,
+        "com.amazonaws"          % "dynamodb-streams-kinesis-adapter" % "1.5.2" % Test,
         "com.amazonaws"          % "aws-java-sdk-cloudwatch"          % awsSdkVersion % Test,
         "com.amazonaws"          % "aws-java-sdk-dynamodb"            % awsSdkVersion % Test
       ),
@@ -128,7 +128,7 @@ val `akka-kinesis-kcl-dynamodb-streams` = (project in file("akka-kinesis-kcl-dyn
     name := "akka-kinesis-kcl",
     libraryDependencies ++= Seq(
         "com.amazonaws" % "aws-java-sdk-dynamodb"            % awsSdkVersion,
-        "com.amazonaws" % "dynamodb-streams-kinesis-adapter" % "1.5.1",
+        "com.amazonaws" % "dynamodb-streams-kinesis-adapter" % "1.5.2",
         "com.amazonaws" % "aws-java-sdk-cloudwatch"          % awsSdkVersion % Test,
         "com.amazonaws" % "aws-java-sdk-dynamodb"            % awsSdkVersion % Test
       ),
