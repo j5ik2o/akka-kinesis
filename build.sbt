@@ -69,7 +69,7 @@ lazy val baseSettings = Seq(
 )
 
 val awsSdkVersion              = "1.11.728"
-val akkaVersion                = "2.6.13"
+val akkaVersion                = "2.6.14"
 val testcontainersScalaVersion = "0.39.3"
 val scalaTestVersion           = "3.2.6"
 val logbackVersion             = "1.2.3"
