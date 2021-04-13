@@ -33,7 +33,7 @@ import scala.concurrent.{ ExecutionContext, ExecutionContextExecutorService, Fut
 
 object KCLSource {
 
-  def apply(
+  def fromConfig(
       config: Config,
       applicationName: String,
       workerId: UUID,
@@ -78,7 +78,8 @@ object KCLSource {
       region,
       kinesisClientConfig,
       dynamoDBClientConfig,
-      dynamoDBClientConfig
+      cloudWatchClientConfig,
+      configOverrides
     )
     ofCustomWorker(
       checkWorkerPeriodicity,
@@ -153,26 +154,6 @@ object KCLSource {
       checkWorkerPeriodicity,
       workerF
     ).via(KCLFlow.ofCheckpoint())
-
-  def withoutCheckpoint(
-      kinesisClientLibConfiguration: KinesisClientLibConfiguration,
-      checkWorkerPeriodicity: FiniteDuration = 1.seconds,
-      amazonKinesisOpt: Option[AmazonKinesis] = None,
-      amazonDynamoDBOpt: Option[AmazonDynamoDB] = None,
-      amazonCloudWatchOpt: Option[AmazonCloudWatch] = None,
-      iMetricsFactoryOpt: Option[IMetricsFactory] = None,
-      leaseManagerOpt: Option[ILeaseManager[KinesisClientLease]] = None,
-      executionContextExecutorServiceOpt: Option[ExecutionContextExecutorService] = None,
-      shardPrioritizationOpt: Option[ShardPrioritization] = None,
-      kinesisProxyOpt: Option[IKinesisProxy] = None,
-      workerStateChangeListenerOpt: Option[WorkerStateChangeListener] = None,
-      leaseSelectorOpt: Option[LeaseSelector[KinesisClientLease]] = None,
-      leaderDeciderOpt: Option[LeaderDecider] = None,
-      leaseTakerOpt: Option[ILeaseTaker[KinesisClientLease]] = None,
-      leaseRenewerOpt: Option[ILeaseRenewer[KinesisClientLease]] = None,
-      shardSyncerOpt: Option[ShardSyncer] = None,
-      recordProcessorFactoryOpt: Option[IRecordProcessorFactory] = None
-  )(implicit ec: ExecutionContext): Source[CommittableRecord, Future[Worker]] = {}
 
   def withoutCheckpoint(
       kinesisClientLibConfiguration: KinesisClientLibConfiguration,
