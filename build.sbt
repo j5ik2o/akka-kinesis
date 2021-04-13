@@ -1,5 +1,4 @@
-val scala212Version = "2.12.13"
-val scala213Version = "2.13.5"
+import Dependencies._
 
 def crossScalacOptions(scalaVersion: String): Seq[String] = CrossVersion.partialVersion(scalaVersion) match {
   case Some((2L, scalaMajor)) if scalaMajor >= 12 =>
@@ -43,8 +42,8 @@ lazy val deploySettings = Seq(
 
 lazy val baseSettings = Seq(
   organization := "com.github.j5ik2o",
-  scalaVersion := scala212Version,
-  crossScalaVersions := Seq(scala212Version, scala213Version),
+  scalaVersion := Versions.scala212Version,
+  crossScalaVersions := Seq(Versions.scala212Version, Versions.scala213Version),
   scalacOptions ++= (Seq(
       "-feature",
       "-deprecation",
@@ -68,12 +67,6 @@ lazy val baseSettings = Seq(
     )
 )
 
-val awsSdkVersion              = "1.11.728"
-val akkaVersion                = "2.6.13"
-val testcontainersScalaVersion = "0.39.3"
-val scalaTestVersion           = "3.2.6"
-val logbackVersion             = "1.2.3"
-
 val dependenciesCommonSettings = Seq(
   resolvers ++= Seq(
       "Sonatype OSS Snapshot Repository" at "https://oss.sonatype.org/content/repositories/snapshots/",
@@ -81,15 +74,15 @@ val dependenciesCommonSettings = Seq(
       Resolver.bintrayRepo("hseeberger", "maven")
     ),
   libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-slf4j"                      % akkaVersion,
-      "com.typesafe.akka" %% "akka-stream"                     % akkaVersion,
-      "com.amazonaws"     % "aws-java-sdk-kinesis"             % awsSdkVersion,
-      "com.dimafeng"      %% "testcontainers-scala-scalatest"  % testcontainersScalaVersion % Test,
-      "com.dimafeng"      %% "testcontainers-scala-localstack" % testcontainersScalaVersion % Test,
-      "org.scalatest"     %% "scalatest"                       % scalaTestVersion % Test,
-      "ch.qos.logback"    % "logback-classic"                  % logbackVersion % Test,
-      "com.typesafe.akka" %% "akka-testkit"                    % akkaVersion % Test,
-      "com.typesafe.akka" %% "akka-stream-testkit"             % akkaVersion % Test
+      typesafe.akka.slf4j,
+      typesafe.akka.stream,
+      amazonAws.kinesis,
+      dimafeng.testcontainersScalatest  % Test,
+      dimafeng.testcontainersLocalstack % Test,
+      scalatest.scalatest               % Test,
+      logback.classic                   % Test,
+      typesafe.akka.testkit             % Test,
+      typesafe.akka.streamTestkit       % Test
     ),
   Test / fork := true,
   envVars in Test := Map("AWS_CBOR_DISABLE" -> "1")
@@ -100,9 +93,9 @@ val `akka-kinesis-kpl` = (project in file("akka-kinesis-kpl"))
   .settings(
     name := "akka-kinesis-kpl",
     libraryDependencies ++= Seq(
-        "com.amazonaws" % "amazon-kinesis-producer" % "0.14.6",
-        "com.amazonaws" % "aws-java-sdk-cloudwatch" % awsSdkVersion % Test,
-        "com.amazonaws" % "aws-java-sdk-dynamodb"   % awsSdkVersion % Test
+        amazonAws.kinesisProducer,
+        amazonAws.cloudwatch % Test,
+        amazonAws.dynamodb   % Test
       ),
     parallelExecution in Test := false
   )
@@ -112,12 +105,12 @@ val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
   .settings(
     name := "akka-kinesis-kcl",
     libraryDependencies ++= Seq(
-        "com.iheart"             %% "ficus"                           % "1.5.0",
-        "com.amazonaws"          % "amazon-kinesis-client"            % "1.14.2",
-        "org.scala-lang.modules" %% "scala-java8-compat"              % "0.9.1",
-        "com.amazonaws"          % "dynamodb-streams-kinesis-adapter" % "1.5.1" % Test,
-        "com.amazonaws"          % "aws-java-sdk-cloudwatch"          % awsSdkVersion % Test,
-        "com.amazonaws"          % "aws-java-sdk-dynamodb"            % awsSdkVersion % Test
+        iheart.ficus,
+        amazonAws.kinesisClient,
+        scalaLang.scalaJava8Compat,
+        amazonAws.streamKinesisAdaptor % Test,
+        amazonAws.cloudwatch           % Test,
+        amazonAws.dynamodb             % Test
       ),
     parallelExecution in Test := false
   )
@@ -127,10 +120,10 @@ val `akka-kinesis-kcl-dynamodb-streams` = (project in file("akka-kinesis-kcl-dyn
   .settings(
     name := "akka-kinesis-kcl",
     libraryDependencies ++= Seq(
-        "com.amazonaws" % "aws-java-sdk-dynamodb"            % awsSdkVersion,
-        "com.amazonaws" % "dynamodb-streams-kinesis-adapter" % "1.5.1",
-        "com.amazonaws" % "aws-java-sdk-cloudwatch"          % awsSdkVersion % Test,
-        "com.amazonaws" % "aws-java-sdk-dynamodb"            % awsSdkVersion % Test
+        amazonAws.dynamodb,
+        amazonAws.streamKinesisAdaptor,
+        amazonAws.cloudwatch % Test,
+        amazonAws.dynamodb   % Test
       ),
     parallelExecution in Test := false
   ).dependsOn(`akka-kinesis-kcl` % "compile->compile;test->test")
