@@ -19,8 +19,8 @@ class KPLFlowStage(
     maxRetries: Int,
     backoffStrategy: RetryBackoffStrategy,
     retryInitialTimeout: FiniteDuration
-)(
-    implicit ec: ExecutionContext
+)(implicit
+    ec: ExecutionContext
 ) extends GraphStageWithMaterializedValue[FlowShape[UserRecord, UserRecordResult], Future[KinesisProducer]] {
 
   private val in  = Inlet[UserRecord]("KPLFlowStage.int")
@@ -105,10 +105,13 @@ class KPLFlowStage(
           log.debug("PutRecords call finished with partial errors; scheduling retry")
           inFlight -= 1
           waitingRetries.put(retryToken, RequestWithAttempt(error, attempt + 1))
-          scheduleOnce(retryToken, backoffStrategy match {
-            case Exponential => scala.math.pow(retryBaseInMillis, attempt).toInt millis
-            case Lineal      => retryInitialTimeout * attempt
-          })
+          scheduleOnce(
+            retryToken,
+            backoffStrategy match {
+              case Exponential => scala.math.pow(retryBaseInMillis, attempt).toInt millis
+              case Lineal      => retryInitialTimeout * attempt
+            }
+          )
           retryToken += 1
         case RequestWithResult(_, Failure(ex), _) =>
           log.error("Exception during put", ex)
@@ -162,13 +165,16 @@ class KPLFlowStage(
         }
       )
 
-      setHandler(out, new OutHandler {
-        override def onPull(): Unit = {
-          tryToExecute()
-          if (waitingRetries.isEmpty && !hasBeenPulled(in)) tryPull(in)
-        }
+      setHandler(
+        out,
+        new OutHandler {
+          override def onPull(): Unit = {
+            tryToExecute()
+            if (waitingRetries.isEmpty && !hasBeenPulled(in)) tryPull(in)
+          }
 
-      })
+        }
+      )
 
     }
     (logic, promise.future)
