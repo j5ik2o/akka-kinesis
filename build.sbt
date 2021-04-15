@@ -98,6 +98,7 @@ val `akka-kinesis-kcl-dynamodb-streams` = (project in file("akka-kinesis-kcl-dyn
   .settings(
     name := "akka-kinesis-kcl",
     libraryDependencies ++= Seq(
+        iheart.ficus,
         amazonAws.dynamodb,
         amazonAws.streamKinesisAdaptor,
         amazonAws.cloudwatch % Test,
