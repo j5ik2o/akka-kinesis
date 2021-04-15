@@ -7,41 +7,18 @@ def crossScalacOptions(scalaVersion: String): Seq[String] = CrossVersion.partial
     Seq("-Yinline-warnings")
 }
 
-lazy val deploySettings = Seq(
-  sonatypeProfileName := "com.github.j5ik2o",
-  publishMavenStyle := true,
-  publishArtifact in Test := false,
-  pomIncludeRepository := { _ => false },
-  pomExtra := {
-    <url>https://github.com/j5ik2o/akka-kinesis</url>
-      <licenses>
-        <license>
-          <name>Apache 2</name>
-          <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-        </license>
-      </licenses>
-      <scm>
-        <url>git@github.com:j5ik2o/akka-kinesis.git</url>
-        <connection>scm:git:github.com/j5ik2o/akka-kinesis</connection>
-        <developerConnection>scm:git:git@github.com:j5ik2o/akka-kinesis.git</developerConnection>
-      </scm>
-      <developers>
-        <developer>
-          <id>j5ik2o</id>
-          <name>Junichi Kato</name>
-        </developer>
-      </developers>
-  },
-  publishTo := sonatypePublishToBundle.value,
-  credentials := {
-    val ivyCredentials = (baseDirectory in LocalRootProject).value / ".credentials"
-    val gpgCredentials = (baseDirectory in LocalRootProject).value / ".gpgCredentials"
-    Credentials(ivyCredentials) :: Credentials(gpgCredentials) :: Nil
-  }
-)
-
 lazy val baseSettings = Seq(
   organization := "com.github.j5ik2o",
+  homepage := Some(url("https://github.com/j5ik2o/akka-kinesis")),
+  licenses := List("The MIT License" -> url("http://opensource.org/licenses/MIT")),
+  developers := List(
+      Developer(
+        id = "j5ik2o",
+        name = "Junichi Kato",
+        email = "j5ik2o@gmail.com",
+        url = url("https://blog.j5ik2o.me")
+      )
+    ),
   scalaVersion := Versions.scala212Version,
   crossScalaVersions := Seq(Versions.scala212Version, Versions.scala213Version),
   scalacOptions ++= (Seq(
@@ -60,6 +37,7 @@ lazy val baseSettings = Seq(
       "Seasar Repository" at "https://maven.seasar.org/maven2/",
       "DynamoDB Local Repository" at "https://s3-us-west-2.amazonaws.com/dynamodb-local/release"
     ),
+  publishArtifact in Test := false,
   parallelExecution in Test := false,
   scalafmtOnCompile in ThisBuild := true,
   envVars := Map(
@@ -89,7 +67,7 @@ val dependenciesCommonSettings = Seq(
 )
 
 val `akka-kinesis-kpl` = (project in file("akka-kinesis-kpl"))
-  .settings(baseSettings, dependenciesCommonSettings, deploySettings)
+  .settings(baseSettings, dependenciesCommonSettings)
   .settings(
     name := "akka-kinesis-kpl",
     libraryDependencies ++= Seq(
@@ -101,7 +79,7 @@ val `akka-kinesis-kpl` = (project in file("akka-kinesis-kpl"))
   )
 
 val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
-  .settings(baseSettings, dependenciesCommonSettings, deploySettings)
+  .settings(baseSettings, dependenciesCommonSettings)
   .settings(
     name := "akka-kinesis-kcl",
     libraryDependencies ++= Seq(
@@ -116,7 +94,7 @@ val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
   )
 
 val `akka-kinesis-kcl-dynamodb-streams` = (project in file("akka-kinesis-kcl-dynamodb-streams"))
-  .settings(baseSettings, dependenciesCommonSettings, deploySettings)
+  .settings(baseSettings, dependenciesCommonSettings)
   .settings(
     name := "akka-kinesis-kcl",
     libraryDependencies ++= Seq(
@@ -129,6 +107,6 @@ val `akka-kinesis-kcl-dynamodb-streams` = (project in file("akka-kinesis-kcl-dyn
   ).dependsOn(`akka-kinesis-kcl` % "compile->compile;test->test")
 
 val `akka-kinesis-root` = (project in file("."))
-  .settings(baseSettings, deploySettings)
+  .settings(baseSettings)
   .settings(name := "akka-kinesis-root")
   .aggregate(`akka-kinesis-kpl`, `akka-kinesis-kcl`, `akka-kinesis-kcl-dynamodb-streams`)
