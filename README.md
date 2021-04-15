@@ -1,6 +1,7 @@
 # akka-kinesis
 
-[![CircleCI](https://circleci.com/gh/j5ik2o/akka-kinesis/tree/master.svg?style=shield)](https://circleci.com/gh/j5ik2o/akka-kinesis/tree/master)
+[![Scala CI](https://github.com/j5ik2o/akka-kinesis/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/j5ik2o/akka-kinesis/actions/workflows/ci.yml)
+[![Mergify Status](https://img.shields.io/endpoint.svg?url=https://gh.mergify.io/badges/j5ik2o/akka-kinesis&style=flat)](https://mergify.io)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.j5ik2o/akka-kinesis-kcl_2.13/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.github.j5ik2o/akka-kinesis-kcl_2.13)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
