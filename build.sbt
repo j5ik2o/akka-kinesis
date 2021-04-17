@@ -37,9 +37,9 @@ lazy val baseSettings = Seq(
       "Seasar Repository" at "https://maven.seasar.org/maven2/",
       "DynamoDB Local Repository" at "https://s3-us-west-2.amazonaws.com/dynamodb-local/release"
     ),
-  publishArtifact in Test := false,
-  parallelExecution in Test := false,
-  scalafmtOnCompile in ThisBuild := true,
+  Test / publishArtifact := false,
+  Test / parallelExecution := false,
+  ThisBuild / scalafmtOnCompile := true,
   envVars := Map(
       "AWS_REGION" -> "ap-northeast-1"
     )
@@ -63,7 +63,7 @@ val dependenciesCommonSettings = Seq(
       typesafe.akka.streamTestkit       % Test
     ),
   Test / fork := true,
-  envVars in Test := Map("AWS_CBOR_DISABLE" -> "1")
+  Test / envVars := Map("AWS_CBOR_DISABLE" -> "1")
 )
 
 val `akka-kinesis-kpl` = (project in file("akka-kinesis-kpl"))
@@ -75,7 +75,7 @@ val `akka-kinesis-kpl` = (project in file("akka-kinesis-kpl"))
         amazonAws.cloudwatch % Test,
         amazonAws.dynamodb   % Test
       ),
-    parallelExecution in Test := false
+    Test / parallelExecution := false
   )
 
 val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
