@@ -15,7 +15,7 @@ object KPLFlowSettings {
   val exponential = Exponential
   val lineal      = Lineal
 
-  val defaultInstance = byNumberOfShards(1)
+  val defaultInstance: KPLFlowSettings = byNumberOfShards(1)
 
   def byNumberOfShards(shards: Int): KPLFlowSettings =
     KPLFlowSettings(

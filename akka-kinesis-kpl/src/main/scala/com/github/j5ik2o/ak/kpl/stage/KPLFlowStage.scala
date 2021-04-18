@@ -1,6 +1,6 @@
 package com.github.j5ik2o.ak.kpl.stage
 
-import java.util.concurrent.{ CompletableFuture, ExecutionException }
+import java.util.concurrent.ExecutionException
 
 import akka.stream.stage._
 import akka.stream.{ Attributes, FlowShape, Inlet, Outlet }
@@ -9,7 +9,6 @@ import com.github.j5ik2o.ak.kpl.dsl.KPLFlowSettings.{ Exponential, Lineal, Retry
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.compat.java8.FutureConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.util.{ Failure, Success, Try }

@@ -8,13 +8,12 @@ import com.amazonaws.services.cloudwatch.{ AmazonCloudWatch, AmazonCloudWatchCli
 import com.amazonaws.services.dynamodbv2.{ AmazonDynamoDBAsync, AmazonDynamoDBAsyncClientBuilder }
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{
   InitialPositionInStream,
-  KinesisClientLibConfiguration,
-  SimpleRecordsFetcherFactory
+  KinesisClientLibConfiguration
 }
 import com.amazonaws.services.kinesis.metrics.impl.NullMetricsFactory
 import com.amazonaws.services.kinesis.model.{ PutRecordRequest, Record, ResourceNotFoundException }
 import com.amazonaws.services.kinesis.{ AmazonKinesis, AmazonKinesisClientBuilder }
-import com.amazonaws.{ ClientConfiguration, SDKGlobalConfiguration }
+import com.amazonaws.SDKGlobalConfiguration
 import com.dimafeng.testcontainers.{ Container, ForAllTestContainer, LocalStackContainer }
 import com.github.j5ik2o.ak.kcl.util.KCLConfiguration
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }

@@ -51,11 +51,11 @@ class KCLSourceOnDynamoDBStreamsSpec
 
   protected val dynamoDBImageVersion = "1.13.2"
 
-  protected val dynamoDBImageName = s"amazon/dynamodb-local:$dynamoDBImageVersion"
+  protected val dynamoDBImageName: String = s"amazon/dynamodb-local:$dynamoDBImageVersion"
 
   protected val dynamoDBPort: Int = RandomPortUtil.temporaryServerPort()
 
-  val host = DockerClientFactory.instance().dockerHostIpAddress()
+  val host: String = DockerClientFactory.instance().dockerHostIpAddress()
 
   protected val dynamoDBEndpoint: String = s"http://$host:$dynamoDBPort"
 
@@ -82,7 +82,7 @@ class KCLSourceOnDynamoDBStreamsSpec
   var awsDynamoDB: AmazonDynamoDB            = _
   var dynamoDBStreams: AmazonDynamoDBStreams = _
   var awsCloudWatch: AmazonCloudWatch        = _
-  val tableName                              = "test-" + UUID.randomUUID().toString
+  val tableName: String                              = "test-" + UUID.randomUUID().toString
 
   override def afterStart(): Unit = {
     val credentialsProvider: AWSCredentialsProvider = localStack.defaultCredentialsProvider

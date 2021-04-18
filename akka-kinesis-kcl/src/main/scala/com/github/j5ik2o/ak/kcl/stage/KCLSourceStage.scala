@@ -12,7 +12,6 @@ import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{ IRecordProce
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{
   KinesisClientLibConfiguration,
   LeaderDecider,
-  LeaseCleanupValidator,
   ShardPrioritization,
   ShardSyncer,
   ShutdownReason,
@@ -30,14 +29,14 @@ import com.amazonaws.services.kinesis.leases.impl.KinesisClientLease
 import com.amazonaws.services.kinesis.leases.interfaces.{ ILeaseManager, ILeaseRenewer, ILeaseTaker, LeaseSelector }
 import com.amazonaws.services.kinesis.metrics.interfaces.IMetricsFactory
 import com.amazonaws.services.kinesis.model.Record
-import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.{ KCLMaterializedValue, RecordProcessorF, RecordSet, WorkerF }
+import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.{ RecordSet, WorkerF }
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.Queue
 import scala.concurrent.duration.{ FiniteDuration, _ }
 import scala.concurrent.{ ExecutionContext, ExecutionContextExecutorService, Future, Promise }
 import scala.util.control.{ NoStackTrace, NonFatal }
-import scala.util.{ Failure, Success, Try }
+import scala.util.{ Success, Try }
 
 sealed trait KinesisWorkerSourceError extends NoStackTrace
 
