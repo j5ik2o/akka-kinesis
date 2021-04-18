@@ -82,7 +82,7 @@ class KCLSourceOnDynamoDBStreamsSpec
   var awsDynamoDB: AmazonDynamoDB            = _
   var dynamoDBStreams: AmazonDynamoDBStreams = _
   var awsCloudWatch: AmazonCloudWatch        = _
-  val tableName: String                              = "test-" + UUID.randomUUID().toString
+  val tableName: String                      = "test-" + UUID.randomUUID().toString
 
   override def afterStart(): Unit = {
     val credentialsProvider: AWSCredentialsProvider = localStack.defaultCredentialsProvider
