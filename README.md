@@ -12,6 +12,7 @@ akka-kinesis supports Akka commponets for AWS Kinesis.
 
 - KPLFlow
 - KCLSource
+- KCLSourceOnDynamoDBStreams (for DynamoDB Streams)
 
 ## Installation
 
@@ -25,6 +26,7 @@ val version = "..."
 
 libraryDependencies += Seq(
   "com.github.j5ik2o" %% "akka-kinesis-kcl" % version,
-  "com.github.j5ik2o" %% "akka-kinesis-kpl" % version
+  "com.github.j5ik2o" %% "akka-kinesis-kpl" % version,
+  "com.github.j5ik2o" %% "akka-kinesis-kcl-dynamodb-streams" % version
 )
 ```
