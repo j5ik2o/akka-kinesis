@@ -130,9 +130,8 @@ class KCLSourceSpec
 
   def waitStreamsToCreated(): Try[Unit] = {
     Try { awsKinesisClient.listStreams() }.flatMap { result =>
-      result.getStreamNames.asScala.foldLeft(Try(())) {
-        case (_, streamName) =>
-          waitStreamToCreated(streamName)
+      result.getStreamNames.asScala.foldLeft(Try(())) { case (_, streamName) =>
+        waitStreamToCreated(streamName)
       }
     }
   }
