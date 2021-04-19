@@ -44,7 +44,6 @@ lazy val baseSettings = Seq(
   semanticdbVersion := scalafixSemanticdb.revision,
   Test / publishArtifact := false,
   Test / parallelExecution := false,
-  ThisBuild / scalafmtOnCompile := true,
   envVars := Map(
       "AWS_REGION" -> "ap-northeast-1"
     )
