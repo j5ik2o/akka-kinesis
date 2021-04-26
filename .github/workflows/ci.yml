@@ -80,4 +80,4 @@ jobs:
           GITHUB_TOKEN: "${{ steps.generate_token.outputs.token }}"
           MERGE_LABELS: ""
           MERGE_METHOD: "rebase"
-          MERGE_FILTER_AUTHOR: "my-scala-steward[bot]"
+          MERGE_FILTER_AUTHOR: "j5ik2o-bot[bot]"
