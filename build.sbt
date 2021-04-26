@@ -1,8 +1,18 @@
 import Dependencies._
 
 def crossScalacOptions(scalaVersion: String): Seq[String] = CrossVersion.partialVersion(scalaVersion) match {
+  case Some((3L, scalaMajor)) =>
+    Seq(
+      "-unchecked",
+      "-source:3.0-migration"
+    )
   case Some((2L, scalaMajor)) if scalaMajor >= 12 =>
-    Seq.empty
+    Seq(
+      "-Ydelambdafy:method",
+      "-target:jvm-1.8",
+      "-Yrangepos",
+      "-Ywarn-unused"
+    )
   case Some((2L, scalaMajor)) if scalaMajor <= 11 =>
     Seq("-Yinline-warnings")
 }
@@ -19,19 +29,15 @@ lazy val baseSettings = Seq(
         url = url("https://blog.j5ik2o.me")
       )
     ),
-  scalaVersion := Versions.scala212Version,
-  crossScalaVersions := Seq(Versions.scala212Version, Versions.scala213Version),
+  scalaVersion := Versions.scala213Version,
+  crossScalaVersions := Seq(Versions.scala212Version, Versions.scala213Version, Versions.scala3Version),
   scalacOptions ++= (Seq(
       "-feature",
       "-deprecation",
       "-unchecked",
       "-encoding",
       "UTF-8",
-      "-language:_",
-      "-Ydelambdafy:method",
-      "-target:jvm-1.8",
-      "-Yrangepos",
-      "-Ywarn-unused"
+      "-language:_"
     ) ++ crossScalacOptions(scalaVersion.value)),
   resolvers ++= Seq(
       Resolver.sonatypeRepo("snapshots"),
@@ -39,6 +45,7 @@ lazy val baseSettings = Seq(
       "Seasar Repository" at "https://maven.seasar.org/maven2/",
       "DynamoDB Local Repository" at "https://s3-us-west-2.amazonaws.com/dynamodb-local/release"
     ),
+  libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % Test,
   ThisBuild / scalafixScalaBinaryVersion := CrossVersion.binaryScalaVersion(scalaVersion.value),
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
@@ -55,16 +62,20 @@ val dependenciesCommonSettings = Seq(
       "Sonatype OSS Release Repository" at "https://oss.sonatype.org/content/repositories/releases/",
       Resolver.bintrayRepo("hseeberger", "maven")
     ),
+  libraryDependencies ++= (
+      Seq(
+        typesafe.akka.slf4j,
+        typesafe.akka.stream,
+        scalatest.scalatest               % Test,
+        dimafeng.testcontainersScalatest  % Test,
+        dimafeng.testcontainersLocalstack % Test,
+        typesafe.akka.testkit             % Test,
+        typesafe.akka.streamTestkit       % Test
+      )
+    ).map(_.cross(CrossVersion.for3Use2_13)),
   libraryDependencies ++= Seq(
-      typesafe.akka.slf4j,
-      typesafe.akka.stream,
-      amazonAws.kinesis,
-      dimafeng.testcontainersScalatest  % Test,
-      dimafeng.testcontainersLocalstack % Test,
-      scalatest.scalatest               % Test,
-      logback.classic                   % Test,
-      typesafe.akka.testkit             % Test,
-      typesafe.akka.streamTestkit       % Test
+    amazonAws.kinesis,
+      logback.classic % Test
     ),
   Test / fork := true,
   Test / envVars := Map("AWS_CBOR_DISABLE" -> "1")
@@ -88,13 +99,15 @@ val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
     name := "akka-kinesis-kcl",
     libraryDependencies ++= Seq(
         iheart.ficus,
+        scalaLang.scalaJava8Compat
+      ).map(_.cross(CrossVersion.for3Use2_13)),
+    libraryDependencies ++= Seq(
         amazonAws.kinesisClient,
-        scalaLang.scalaJava8Compat,
         amazonAws.streamKinesisAdaptor % Test,
         amazonAws.cloudwatch           % Test,
         amazonAws.dynamodb             % Test
       ),
-    parallelExecution in Test := false
+    Test / parallelExecution := false
   )
 
 val `akka-kinesis-kcl-dynamodb-streams` = (project in file("akka-kinesis-kcl-dynamodb-streams"))
@@ -103,14 +116,16 @@ val `akka-kinesis-kcl-dynamodb-streams` = (project in file("akka-kinesis-kcl-dyn
     name := "akka-kinesis-kcl",
     libraryDependencies ++= Seq(
         iheart.ficus,
+        scalaLang.scalaJava8Compat
+      ).map(_.cross(CrossVersion.for3Use2_13)),
+    libraryDependencies ++= Seq(
         amazonAws.kinesisClient,
         amazonAws.dynamodb,
-        scalaLang.scalaJava8Compat,
         amazonAws.streamKinesisAdaptor,
         amazonAws.cloudwatch % Test,
         amazonAws.dynamodb   % Test
       ),
-    parallelExecution in Test := false
+    Test / parallelExecution := false
   ).dependsOn(`akka-kinesis-kcl` % "compile->compile;test->test")
 
 val `akka-kinesis-root` = (project in file("."))

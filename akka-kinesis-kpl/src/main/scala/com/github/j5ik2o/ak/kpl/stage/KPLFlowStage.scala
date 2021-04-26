@@ -100,14 +100,17 @@ class KPLFlowStage(
           val last = ex.getResult.getAttempts.asScala.last
           log.error("Record failed to put - {} : {}", last.getErrorCode, last.getErrorMessage)
           failStage(ex)
-        case RequestWithResult(error, Failure(ex: UserRecordFailedException), attempt) =>
+        case RequestWithResult(error, Failure(_: UserRecordFailedException), attempt) =>
           log.debug("PutRecords call finished with partial errors; scheduling retry")
           inFlight -= 1
           waitingRetries.put(retryToken, RequestWithAttempt(error, attempt + 1))
-          scheduleOnce(retryToken, backoffStrategy match {
-            case Exponential => scala.math.pow(retryBaseInMillis, attempt).toInt millis
-            case Lineal      => retryInitialTimeout * attempt
-          })
+          scheduleOnce(
+            retryToken,
+            backoffStrategy match {
+              case Exponential => scala.math.pow(retryBaseInMillis.toDouble, attempt.toDouble).toInt.millis
+              case Lineal      => retryInitialTimeout * attempt
+            }
+          )
           retryToken += 1
         case RequestWithResult(_, Failure(ex), _) =>
           log.error("Exception during put", ex)

@@ -93,19 +93,19 @@ object KCLConfiguration {
     val idleTimeBetweenReads = {
       val v = config.getOrElse(
         "idle-time-between-reads",
-        KinesisClientLibConfiguration.DEFAULT_IDLETIME_BETWEEN_READS_MILLIS millis
+        KinesisClientLibConfiguration.DEFAULT_IDLETIME_BETWEEN_READS_MILLIS.millis
       )
       configOverrides.fold(v)(_.idleTimeBetweenReadsOpt.getOrElse(v))
     }
     val failoverTime = {
-      val v = config.getOrElse("failover-time", KinesisClientLibConfiguration.DEFAULT_FAILOVER_TIME_MILLIS millis)
+      val v = config.getOrElse("failover-time", KinesisClientLibConfiguration.DEFAULT_FAILOVER_TIME_MILLIS.millis)
       configOverrides.fold(v)(_.failoverTimeOpt.getOrElse(v))
     }
     val shardSyncInterval = {
       val v = config
         .getOrElse[Duration](
           "shard-sync-interval",
-          KinesisClientLibConfiguration.DEFAULT_SHARD_SYNC_INTERVAL_MILLIS millis
+          KinesisClientLibConfiguration.DEFAULT_SHARD_SYNC_INTERVAL_MILLIS.millis
         )
       configOverrides.fold(v)(_.shardSyncIntervalOpt.getOrElse(v))
     }
@@ -119,7 +119,7 @@ object KCLConfiguration {
     val parentShardPollInterval = {
       val v = config.getOrElse(
         "parent-shard-poll-interval",
-        KinesisClientLibConfiguration.DEFAULT_PARENT_SHARD_POLL_INTERVAL_MILLIS millis
+        KinesisClientLibConfiguration.DEFAULT_PARENT_SHARD_POLL_INTERVAL_MILLIS.millis
       )
       configOverrides.fold(v)(_.parentShardPollIntervalOpt.getOrElse(v))
     }
@@ -138,14 +138,14 @@ object KCLConfiguration {
     val taskBackoffTime = {
       val v = config.getOrElse(
         "task-backoff-time",
-        KinesisClientLibConfiguration.DEFAULT_TASK_BACKOFF_TIME_MILLIS millis
+        KinesisClientLibConfiguration.DEFAULT_TASK_BACKOFF_TIME_MILLIS.millis
       )
       configOverrides.fold(v)(_.taskBackoffTimeOpt.getOrElse(v))
     }
     val metricsBufferTime = {
       val v = config.getOrElse(
         "metrics-buffer-time",
-        KinesisClientLibConfiguration.DEFAULT_METRICS_BUFFER_TIME_MILLIS millis
+        KinesisClientLibConfiguration.DEFAULT_METRICS_BUFFER_TIME_MILLIS.millis
       )
       configOverrides.fold(v)(_.metricsBufferTimeOpt.getOrElse(v))
     }
@@ -248,7 +248,7 @@ object KCLConfiguration {
       configOverrides.fold(v)(_.timeoutOpt.orElse(v))
     }
     val shutdownGrace = {
-      val v = config.getOrElse("shutdown-grace", KinesisClientLibConfiguration.DEFAULT_SHUTDOWN_GRACE_MILLIS millis)
+      val v = config.getOrElse("shutdown-grace", KinesisClientLibConfiguration.DEFAULT_SHUTDOWN_GRACE_MILLIS.millis)
       configOverrides.fold(v)(_.shutdownGraceOpt.getOrElse(v))
     }
     val idleMillisBetweenCalls = {
@@ -262,7 +262,7 @@ object KCLConfiguration {
     val listShardsBackoffTimeInMillis = {
       val v = config.getOrElse(
         "list-shards-backoff-time",
-        KinesisClientLibConfiguration.DEFAULT_LIST_SHARDS_BACKOFF_TIME_IN_MILLIS millis
+        KinesisClientLibConfiguration.DEFAULT_LIST_SHARDS_BACKOFF_TIME_IN_MILLIS.millis
       )
       configOverrides.fold(v)(_.listShardsBackoffTimeInMillisOpt.getOrElse(v))
     }

@@ -12,7 +12,7 @@ object KCLFlow {
   def ofCheckpoint()(implicit ec: ExecutionContext): Flow[CommittableRecord, Record, NotUsed] =
     Flow[CommittableRecord]
       .mapAsync(1) { v =>
-        if (v.canBeCheckpointed) {
+        if (v.canBeCheckpointed()) {
           v.checkpoint().map { _ => v }
         } else Future.successful(v)
       }
