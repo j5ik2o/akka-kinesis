@@ -74,7 +74,7 @@ val dependenciesCommonSettings = Seq(
       )
     ).map(_.cross(CrossVersion.for3Use2_13)),
   libraryDependencies ++= Seq(
-    amazonAws.kinesis,
+      amazonAws.kinesis,
       logback.classic % Test
     ),
   Test / fork := true,
