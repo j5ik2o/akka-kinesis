@@ -7,7 +7,7 @@ object Dependencies {
     val scala213Version            = "2.13.5"
     val awsSdkVersion              = "1.11.1017"
     val akkaVersion                = "2.6.13"
-    val testcontainersScalaVersion = "0.39.3"
+    val testcontainersScalaVersion = "0.39.4"
     val scalaTestVersion           = "3.2.6"
     val logbackVersion             = "1.2.3"
   }
