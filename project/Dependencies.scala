@@ -36,7 +36,7 @@ object Dependencies {
   }
 
   object scalaLang {
-    val scalaJava8Compat = "org.scala-lang.modules" %% "scala-java8-compat" % "0.9.1"
+    val scalaJava8Compat = "org.scala-lang.modules" %% "scala-java8-compat" % "1.0.0"
   }
 
   object dimafeng {
