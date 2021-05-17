@@ -100,7 +100,7 @@ val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
 val `akka-kinesis-kcl-dynamodb-streams` = (project in file("akka-kinesis-kcl-dynamodb-streams"))
   .settings(baseSettings, dependenciesCommonSettings)
   .settings(
-    name := "akka-kinesis-kcl",
+    name := "akka-kinesis-kcl-dynamodb-streams",
     libraryDependencies ++= Seq(
         iheart.ficus,
         amazonAws.kinesisClient,
