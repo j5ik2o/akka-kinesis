@@ -23,12 +23,13 @@ object Dependencies {
   }
 
   object amazonAws {
-    val kinesis              = "com.amazonaws" % "aws-java-sdk-kinesis"             % Versions.awsSdkVersion
-    val cloudwatch           = "com.amazonaws" % "aws-java-sdk-cloudwatch"          % Versions.awsSdkVersion
-    val dynamodb             = "com.amazonaws" % "aws-java-sdk-dynamodb"            % Versions.awsSdkVersion
-    val kinesisProducer      = "com.amazonaws" % "amazon-kinesis-producer"          % "0.14.6"
-    val kinesisClient        = "com.amazonaws" % "amazon-kinesis-client"            % "1.14.3"
-    val streamKinesisAdaptor = "com.amazonaws" % "dynamodb-streams-kinesis-adapter" % "1.5.3"
+    val kinesis              = "com.amazonaws"           % "aws-java-sdk-kinesis"             % Versions.awsSdkVersion
+    val cloudwatch           = "com.amazonaws"           % "aws-java-sdk-cloudwatch"          % Versions.awsSdkVersion
+    val dynamodb             = "com.amazonaws"           % "aws-java-sdk-dynamodb"            % Versions.awsSdkVersion
+    val kinesisProducer      = "com.amazonaws"           % "amazon-kinesis-producer"          % "0.14.6"
+    val kinesisClientV1      = "com.amazonaws"           % "amazon-kinesis-client"            % "1.14.3"
+    val kinesisClientV2      = "software.amazon.kinesis" % "amazon-kinesis-client"            % "2.3.4"
+    val streamKinesisAdaptor = "com.amazonaws"           % "dynamodb-streams-kinesis-adapter" % "1.5.3"
   }
 
   object iheart {

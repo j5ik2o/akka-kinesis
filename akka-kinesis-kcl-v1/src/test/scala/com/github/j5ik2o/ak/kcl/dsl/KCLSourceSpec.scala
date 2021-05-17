@@ -40,7 +40,7 @@ class KCLSourceSpec
     with Eventually {
   System.setProperty(SDKGlobalConfiguration.AWS_CBOR_DISABLE_SYSTEM_PROPERTY, "true")
 
-  implicit val defaultPatience: PatienceConfig =
+  override implicit val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
 
   val localStack: LocalStackContainer = LocalStackContainer(
@@ -91,12 +91,12 @@ class KCLSourceSpec
 
     kinesisClientLibConfiguration = KCLConfiguration.fromConfig(
       system.settings.config,
-      applicationName,
-      UUID.randomUUID(),
-      streamName,
-      credentialsProvider,
-      credentialsProvider,
-      credentialsProvider,
+      applicationName = applicationName,
+      workerId = UUID.randomUUID(),
+      streamArn = streamName,
+      kinesisCredentialsProvider = credentialsProvider,
+      dynamoDBCredentialsProvider = credentialsProvider,
+      cloudWatchCredentialsProvider = credentialsProvider,
       configOverrides = Some(
         KCLConfiguration.ConfigOverrides(positionInStreamOpt = Some(InitialPositionInStream.TRIM_HORIZON))
       )

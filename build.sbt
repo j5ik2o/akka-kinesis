@@ -1,5 +1,7 @@
 import Dependencies._
 
+ThisBuild / scalafixScalaBinaryVersion := CrossVersion.binaryScalaVersion(scalaVersion.value)
+
 def crossScalacOptions(scalaVersion: String): Seq[String] = CrossVersion.partialVersion(scalaVersion) match {
   case Some((2L, scalaMajor)) if scalaMajor >= 12 =>
     Seq.empty
@@ -19,7 +21,7 @@ lazy val baseSettings = Seq(
         url = url("https://blog.j5ik2o.me")
       )
     ),
-  scalaVersion := Versions.scala212Version,
+  scalaVersion := Versions.scala213Version,
   crossScalaVersions := Seq(Versions.scala212Version, Versions.scala213Version),
   scalacOptions ++= (Seq(
       "-feature",
@@ -39,7 +41,6 @@ lazy val baseSettings = Seq(
       "Seasar Repository" at "https://maven.seasar.org/maven2/",
       "DynamoDB Local Repository" at "https://s3-us-west-2.amazonaws.com/dynamodb-local/release"
     ),
-  ThisBuild / scalafixScalaBinaryVersion := CrossVersion.binaryScalaVersion(scalaVersion.value),
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
   Test / publishArtifact := false,
@@ -82,41 +83,56 @@ val `akka-kinesis-kpl` = (project in file("akka-kinesis-kpl"))
     Test / parallelExecution := false
   )
 
-val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
+val `akka-kinesis-kcl-v1` = (project in file("akka-kinesis-kcl-v1"))
   .settings(baseSettings, dependenciesCommonSettings)
   .settings(
-    name := "akka-kinesis-kcl",
+    name := "akka-kinesis-kcl-v1",
     libraryDependencies ++= Seq(
         iheart.ficus,
-        amazonAws.kinesisClient,
+        amazonAws.kinesisClientV1,
         scalaLang.scalaJava8Compat,
         amazonAws.streamKinesisAdaptor % Test,
         amazonAws.cloudwatch           % Test,
         amazonAws.dynamodb             % Test
       ),
-    parallelExecution in Test := false
+    Test / parallelExecution := false
   )
 
-val `akka-kinesis-kcl-dynamodb-streams` = (project in file("akka-kinesis-kcl-dynamodb-streams"))
+val `akka-kinesis-kcl-v1-dynamodb-streams` = (project in file("akka-kinesis-kcl-v1-dynamodb-streams"))
   .settings(baseSettings, dependenciesCommonSettings)
   .settings(
-    name := "akka-kinesis-kcl",
+    name := "akka-kinesis-kcl-v1",
     libraryDependencies ++= Seq(
         iheart.ficus,
-        amazonAws.kinesisClient,
+        amazonAws.kinesisClientV1,
         amazonAws.dynamodb,
         scalaLang.scalaJava8Compat,
         amazonAws.streamKinesisAdaptor,
         amazonAws.cloudwatch % Test,
         amazonAws.dynamodb   % Test
       ),
-    parallelExecution in Test := false
-  ).dependsOn(`akka-kinesis-kcl` % "compile->compile;test->test")
+    Test / parallelExecution := false
+  ).dependsOn(`akka-kinesis-kcl-v1` % "compile->compile;test->test")
+
+val `akka-kinesis-kcl-v2` = (project in file("akka-kinesis-kcl-v2"))
+  .settings(baseSettings, dependenciesCommonSettings)
+  .settings(
+    name := "akka-kinesis-kcl-v2",
+    libraryDependencies ++= Seq(
+        iheart.ficus,
+        amazonAws.kinesisClientV2,
+        scalaLang.scalaJava8Compat,
+        amazonAws.streamKinesisAdaptor % Test,
+        amazonAws.cloudwatch           % Test,
+        amazonAws.dynamodb             % Test
+      ),
+    Test / parallelExecution := false
+  )
 
 val `akka-kinesis-root` = (project in file("."))
   .settings(baseSettings)
   .settings(name := "akka-kinesis-root")
-  .aggregate(`akka-kinesis-kpl`, `akka-kinesis-kcl`, `akka-kinesis-kcl-dynamodb-streams`)
+  .aggregate(`akka-kinesis-kpl`, `akka-kinesis-kcl-v1`, `akka-kinesis-kcl-v1-dynamodb-streams`, `akka-kinesis-kcl-v2`)
 
 // --- Custom commands
 addCommandAlias("lint", ";scalafmtCheck;test:scalafmtCheck;scalafmtSbtCheck;scalafixAll --check")
