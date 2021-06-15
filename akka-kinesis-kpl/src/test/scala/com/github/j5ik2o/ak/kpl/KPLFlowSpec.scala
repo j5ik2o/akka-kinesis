@@ -132,7 +132,7 @@ class KPLFlowSpec
   }
 
   "KPLFlow" - {
-    "publisher" in {
+    "publisher" i {
       implicit val ec  = system.dispatcher
       implicit val mat = ActorMaterializer()
 
