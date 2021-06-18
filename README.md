@@ -20,7 +20,7 @@ Add the following to your sbt build (2.12.x, 2.13.x):
 
 ```scala
 // if snapshot
-resolvers += "Sonatype OSS Release Repository" at "https://oss.sonatype.org/content/repositories/releases/"
+resolvers += "Sonatype OSS Snapshot Repository" at "https://oss.sonatype.org/content/repositories/snapshots/"
 
 val version = "..."
 
