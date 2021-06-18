@@ -9,8 +9,7 @@ import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{
   InitialPositionInStream,
   KinesisClientLibConfiguration,
   NoOpShardPrioritization,
-  ShardSyncStrategyType,
-  SimpleRecordsFetcherFactory
+  ShardSyncStrategyType
 }
 import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
 import com.typesafe.config.Config
