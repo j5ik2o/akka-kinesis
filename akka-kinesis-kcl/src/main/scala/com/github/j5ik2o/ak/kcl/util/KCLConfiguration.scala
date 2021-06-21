@@ -9,8 +9,7 @@ import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{
   InitialPositionInStream,
   KinesisClientLibConfiguration,
   NoOpShardPrioritization,
-  ShardSyncStrategyType,
-  SimpleRecordsFetcherFactory
+  ShardSyncStrategyType
 }
 import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
 import com.typesafe.config.Config
@@ -300,11 +299,11 @@ object KCLConfiguration {
       validateSequenceNumberBeforeCheckpointing,
       region.map(_.toString).orNull,
       shutdownGrace.toMillis,
-      billingMode,
-      new SimpleRecordsFetcherFactory(),
-      java.time.Duration.ofMinutes(1).toMillis,
-      java.time.Duration.ofMinutes(5).toMillis,
-      java.time.Duration.ofMinutes(30).toMillis
+      billingMode
+//      new SimpleRecordsFetcherFactory(),
+//      java.time.Duration.ofMinutes(1).toMillis,
+//      java.time.Duration.ofMinutes(5).toMillis,
+//      java.time.Duration.ofMinutes(30).toMillis
     ).withCallProcessRecordsEvenForEmptyRecordList(callProcessRecordsEvenForEmptyRecordList)
       .withParentShardPollIntervalMillis(parentShardPollInterval.toMillis)
       // withIgnoreUnexpectedChildShards
