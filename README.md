@@ -25,8 +25,8 @@ resolvers += "Sonatype OSS Snapshot Repository" at "https://oss.sonatype.org/con
 val version = "..."
 
 libraryDependencies += Seq(
-  "com.github.j5ik2o" %% "akka-kinesis-kcl" % version,
-  "com.github.j5ik2o" %% "akka-kinesis-kpl" % version,
-  "com.github.j5ik2o" %% "akka-kinesis-kcl-dynamodb-streams" % version
+  "com.github.j5ik2o" %% "akka-kinesis-kcl" % version, // for KCL
+  "com.github.j5ik2o" %% "akka-kinesis-kpl" % version, // for KPL
+  "com.github.j5ik2o" %% "akka-kinesis-kcl-dynamodb-streams" % version // for KCL with DynamoDB Streams
 )
 ```
