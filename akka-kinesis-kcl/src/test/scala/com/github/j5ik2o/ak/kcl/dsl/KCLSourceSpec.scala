@@ -40,8 +40,11 @@ class KCLSourceSpec
     with Eventually {
   System.setProperty(SDKGlobalConfiguration.AWS_CBOR_DISABLE_SYSTEM_PROPERTY, "true")
 
-  implicit val defaultPatience: PatienceConfig =
-    PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
+  override implicit val patienceConfig: PatienceConfig =
+    PatienceConfig(
+      timeout = Span(60 * sys.env.getOrElse("TEST_TIME_FACTOR", "1").toInt, Seconds),
+      interval = Span(500 * sys.env.getOrElse("TEST_TIME_FACTOR", "1").toInt, Millis)
+    )
 
   val localStack: LocalStackContainer = LocalStackContainer(
     tag = "0.9.5",
@@ -112,19 +115,19 @@ class KCLSourceSpec
           println(s"waiting completed: $streamName, $result")
           Success(())
         case Failure(ex: ResourceNotFoundException) =>
-          Thread.sleep(waitDuration.toMillis)
+          Thread.sleep(waitDuration.toMillis * sys.env.getOrElse("TEST_TIME_FACTOR", "1").toInt)
           println("waiting until stream creates")
           go
         case Failure(ex) => Failure(ex)
         case _ =>
-          Thread.sleep(waitDuration.toMillis)
+          Thread.sleep(waitDuration.toMillis * sys.env.getOrElse("TEST_TIME_FACTOR", "1").toInt)
           println("waiting until stream creates")
           go
 
       }
     }
     val result = go
-    Thread.sleep(waitDuration.toMillis)
+    Thread.sleep(waitDuration.toMillis * sys.env.getOrElse("TEST_TIME_FACTOR", "1").toInt)
     result
   }
 

@@ -72,19 +72,19 @@ class KPLFlowSpec
           println(s"waiting completed: $streamName, $result")
           Success(())
         case Failure(ex: ResourceNotFoundException) =>
-          Thread.sleep(waitDuration.toMillis)
+          Thread.sleep(waitDuration.toMillis * sys.env.getOrElse("TEST_TIME_FACTOR", "1").toInt)
           println("waiting until stream creates")
           go
         case Failure(ex) => Failure(ex)
         case _ =>
-          Thread.sleep(waitDuration.toMillis)
+          Thread.sleep(waitDuration.toMillis * sys.env.getOrElse("TEST_TIME_FACTOR", "1").toInt)
           println("waiting until stream creates")
           go
 
       }
     }
     val result = go
-    Thread.sleep(waitDuration.toMillis)
+    Thread.sleep(waitDuration.toMillis * sys.env.getOrElse("TEST_TIME_FACTOR", "1").toInt)
     result
   }
 
@@ -123,7 +123,7 @@ class KPLFlowSpec
       .setKinesisPort(kinesisPort.toLong)
       .setCloudwatchEndpoint(host)
       .setCloudwatchPort(cloudwatchPort.toLong)
-      .setCredentialsRefreshDelay(100)
+      .setCredentialsRefreshDelay(100 * sys.env.getOrElse("TEST_TIME_FACTOR", "1").toInt)
       .setVerifyCertificate(false)
   }
 
@@ -132,7 +132,7 @@ class KPLFlowSpec
   }
 
   "KPLFlow" - {
-    "publisher" ignore {
+    "publisher" in {
       implicit val ec  = system.dispatcher
       implicit val mat = ActorMaterializer()
 
@@ -153,7 +153,7 @@ class KPLFlowSpec
         .toMat(Sink.foreach { msg => result = msg })(Keep.both)
         .run()
 
-      TimeUnit.SECONDS.sleep(10)
+      TimeUnit.SECONDS.sleep(10 * sys.env.getOrElse("TEST_TIME_FACTOR", "1").toInt)
 
       sw.shutdown()
       future.futureValue
