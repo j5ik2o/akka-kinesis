@@ -197,10 +197,15 @@ class KCLSourceStage(
 
       private var worker: Worker = _
 
+      private var shardId: String = _
+
       private var buffer: Queue[RecordSet] = Queue.empty[RecordSet]
 
       private val onInitializeCallback: AsyncCallback[InitializationInput] = getAsyncCallback { initializationInput =>
-        log.debug(s"onInitializeCallback: initializationInput = $initializationInput")
+        log.debug(
+          s"onInitializeCallback: initializationInput = shardId:${initializationInput.getShardId}, extendedSequenceNumber:${initializationInput.getExtendedSequenceNumber}, pendingCheckpointSequenceNumber:${initializationInput.getPendingCheckpointSequenceNumber}"
+        )
+        shardId = initializationInput.getShardId
       }
 
       private val onRecordSetCallback: AsyncCallback[RecordSet] = getAsyncCallback { recordSet =>
@@ -210,14 +215,16 @@ class KCLSourceStage(
       }
 
       private val onShutdownCallback: AsyncCallback[ShutdownInput] = getAsyncCallback { shutdownInput =>
-        log.debug(s"onShutdownCallback: shutdownInput = $shutdownInput")
+        log.debug(
+          s"onShutdownCallback: shutdownInput = shardId:$shardId, shutdownReason:${shutdownInput.getShutdownReason}"
+        )
         if (shutdownInput.getShutdownReason == ShutdownReason.TERMINATE) {
           try {
             shutdownInput.getCheckpointer.checkpoint()
-            log.debug("onShutdownCallback: checkpoint is success!")
+            log.debug(s"onShutdownCallback: checkpoint is success! shardId = $shardId")
           } catch {
             case NonFatal(ex: Throwable) =>
-              log.error("onShutdownCallback: checkpoint is failure!!!", ex)
+              log.error("onShutdownCallback: checkpoint is failure!!! shardId = $shardId", ex)
               fail(out, ex)
           }
         }
