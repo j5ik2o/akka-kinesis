@@ -35,7 +35,7 @@ jobs:
           --grep='^revert:' \
           --grep='^chore:' | awk 'END{print NR}')
         echo "steps.changes.outputs.count = $COUNT"
-        if [[ "$FORCE" = "1" ]]; then
+        if [[ "${{ github.events.inputs.force }}" = "1" ]]; then
           echo "::set-output name=count::1"
         else
           echo "::set-output name=count::$COUNT"
