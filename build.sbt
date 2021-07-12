@@ -39,8 +39,8 @@ lazy val baseSettings = Seq(
     "Seasar Repository" at "https://maven.seasar.org/maven2/",
     "DynamoDB Local Repository" at "https://s3-us-west-2.amazonaws.com/dynamodb-local/release"
   ),
-  Test / publishArtifact                 := false,
-  Test / parallelExecution               := false,
+  Test / publishArtifact   := false,
+  Test / parallelExecution := false,
   Compile / doc / sources := {
     val old = (Compile / doc / sources).value
     if (scalaVersion.value == Versions.scala3Version) {
