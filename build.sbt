@@ -39,11 +39,23 @@ lazy val baseSettings = Seq(
     "Seasar Repository" at "https://maven.seasar.org/maven2/",
     "DynamoDB Local Repository" at "https://s3-us-west-2.amazonaws.com/dynamodb-local/release"
   ),
-  ThisBuild / scalafixScalaBinaryVersion := CrossVersion.binaryScalaVersion(scalaVersion.value),
-  semanticdbEnabled                      := true,
-  semanticdbVersion                      := scalafixSemanticdb.revision,
   Test / publishArtifact                 := false,
   Test / parallelExecution               := false,
+  Compile / doc / sources := {
+    val old = (Compile / doc / sources).value
+    if (scalaVersion.value == Versions.scala3Version) {
+      Nil
+    } else {
+      old
+    }
+  },
+  semanticdbEnabled := true,
+  semanticdbVersion := scalafixSemanticdb.revision,
+  // Remove me when scalafix is stable and feature-complete on Scala 3
+  ThisBuild / scalafixScalaBinaryVersion := (CrossVersion.partialVersion(scalaVersion.value) match {
+    case Some((2, _)) => CrossVersion.binaryScalaVersion(scalaVersion.value)
+    case _            => CrossVersion.binaryScalaVersion(Versions.scala212Version)
+  }),
   envVars := Map(
     "AWS_REGION" -> "ap-northeast-1"
   )
@@ -94,7 +106,7 @@ val `akka-kinesis-kcl` = (project in file("akka-kinesis-kcl"))
       amazonAws.cloudwatch           % Test,
       amazonAws.dynamodb             % Test
     ),
-    parallelExecution in Test := false
+    Test / parallelExecution := false
   )
 
 val `akka-kinesis-kcl-dynamodb-streams` = (project in file("akka-kinesis-kcl-dynamodb-streams"))
@@ -110,7 +122,7 @@ val `akka-kinesis-kcl-dynamodb-streams` = (project in file("akka-kinesis-kcl-dyn
       amazonAws.cloudwatch % Test,
       amazonAws.dynamodb   % Test
     ),
-    parallelExecution in Test := false
+    Test / parallelExecution := false
   ).dependsOn(`akka-kinesis-kcl` % "compile->compile;test->test")
 
 val `akka-kinesis-root` = (project in file("."))
