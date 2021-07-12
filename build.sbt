@@ -40,7 +40,7 @@ lazy val baseSettings = Seq(
   ) ++ crossScalacOptions(scalaVersion.value)),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
-    "Seasar Repository" at "https://maven.seasar.org/maven2/",
+    "Seasar Repository" at "https://maven.seasar.org/maven2/"
   ),
   Test / publishArtifact   := false,
   Test / parallelExecution := false,
@@ -67,8 +67,8 @@ lazy val baseSettings = Seq(
 val dependenciesCommonSettings = Seq(
   libraryDependencies ++= Seq(
     amazonAws.kinesis,
-    logback.classic % Test,
-    scalatest.scalatest               % Test
+    logback.classic     % Test,
+    scalatest.scalatest % Test
   ),
   libraryDependencies ++= Seq(
     typesafe.akka.slf4j,
