@@ -86,8 +86,8 @@ class KCLSourceOnDynamoDBStreamsSpec
 
   override def afterStart(): Unit = {
     val credentialsProvider: AWSCredentialsProvider = localStack.defaultCredentialsProvider
-    val dynamoDbEndpointConfiguration               = new EndpointConfiguration(dynamoDBEndpoint, Regions.AP_NORTHEAST_1.getName)
-    val cloudwatchEndpointConfiguration             = localStack.endpointConfiguration(JavaLocalStackContainer.Service.CLOUDWATCH)
+    val dynamoDbEndpointConfiguration   = new EndpointConfiguration(dynamoDBEndpoint, Regions.AP_NORTHEAST_1.getName)
+    val cloudwatchEndpointConfiguration = localStack.endpointConfiguration(JavaLocalStackContainer.Service.CLOUDWATCH)
 
     awsDynamoDB = AmazonDynamoDBClient
       .builder()

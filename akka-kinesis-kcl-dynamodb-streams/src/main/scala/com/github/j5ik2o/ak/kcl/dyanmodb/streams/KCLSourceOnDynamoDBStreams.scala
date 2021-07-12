@@ -32,7 +32,8 @@ object KCLSourceOnDynamoDBStreams {
   )(implicit ec: ExecutionContext): Source[Record, Future[Worker]] =
     KCLSource
       .ofCustomWorker(
-        checkWorkerPeriodicity, {
+        checkWorkerPeriodicity,
+        {
           (
               onInitializeCallback: AsyncCallback[InitializationInput],
               onRecordCallback: AsyncCallback[RecordSet],
@@ -78,7 +79,8 @@ object KCLSourceOnDynamoDBStreams {
       recordProcessorFactoryOpt: Option[IRecordProcessorFactory] = None
   )(implicit ec: ExecutionContext): Source[CommittableRecord, Future[Worker]] = {
     KCLSource.ofCustomWorkerWithoutCheckpoint(
-      checkWorkerPeriodicity, {
+      checkWorkerPeriodicity,
+      {
         (
             onInitializeCallback: AsyncCallback[InitializationInput],
             onRecordCallback: AsyncCallback[RecordSet],
