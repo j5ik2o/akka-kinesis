@@ -25,7 +25,7 @@ object KPLFlowSettings {
       maxBytesPerSecond = shards * MAX_BYTES_PER_SHARD_PER_SECOND,
       maxRetries = 5,
       backoffStrategy = Exponential,
-      retryInitialTimeout = 100 millis
+      retryInitialTimeout = 100.millis
     )
 
 }
@@ -37,5 +37,5 @@ case class KPLFlowSettings(
     maxBytesPerSecond: Int,
     maxRetries: Int = 5,
     backoffStrategy: KPLFlowSettings.RetryBackoffStrategy = KPLFlowSettings.Exponential,
-    retryInitialTimeout: FiniteDuration = 100 millis
+    retryInitialTimeout: FiniteDuration = 100.millis
 )

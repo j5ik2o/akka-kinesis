@@ -107,7 +107,7 @@ class KPLFlowStage(
           scheduleOnce(
             retryToken,
             backoffStrategy match {
-              case Exponential => scala.math.pow(retryBaseInMillis, attempt).toInt millis
+              case Exponential => scala.math.pow(retryBaseInMillis, attempt).millis
               case Lineal      => retryInitialTimeout * attempt
             }
           )

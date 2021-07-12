@@ -89,7 +89,8 @@ class KCLSourceSpec
       .withCredentials(credentialsProvider)
       .withEndpointConfiguration(cloudwatchEndpointConfiguration).build()
 
-    assert(awsKinesisClient.createStream(streamName, 1).getSdkHttpMetadata.getHttpStatusCode == 200)
+    val httpStatusCode = awsKinesisClient.createStream(streamName, 1).getSdkHttpMetadata.getHttpStatusCode
+    assert(httpStatusCode == 200)
     waitStreamToCreated(streamName)
 
     kinesisClientLibConfiguration = KCLConfiguration.fromConfig(

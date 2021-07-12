@@ -234,7 +234,7 @@ class KCLSourceStage(
         if (buffer.nonEmpty && isAvailable(out)) {
           val (head, tail) = buffer.dequeue
           buffer = tail
-          val records = head.records.map { record: Record =>
+          val records = head.records.map { (record: Record) =>
             new CommittableRecord(
               shardId = head.shardId,
               recordProcessorStartingSequenceNumber = head.extendedSequenceNumber,
