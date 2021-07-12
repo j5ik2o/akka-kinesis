@@ -280,9 +280,12 @@ class KCLSourceStage(
         log.info(s"Shut down Worker instance: worker = ${worker.getApplicationName}")
       }
 
-      setHandler(out, new OutHandler {
-        override def onPull(): Unit = tryToProduce()
-      })
+      setHandler(
+        out,
+        new OutHandler {
+          override def onPull(): Unit = tryToProduce()
+        }
+      )
 
     }
     (logic, workerPromise.future)
