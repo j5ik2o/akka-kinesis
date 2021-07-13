@@ -2,21 +2,22 @@ package com.github.j5ik2o.ak.kcl.dyanmodb.streams
 
 import akka.stream.scaladsl.Source
 import akka.stream.stage.AsyncCallback
-import com.amazonaws.services.cloudwatch.{ AmazonCloudWatch, AmazonCloudWatchClient }
-import com.amazonaws.services.dynamodbv2.{ AmazonDynamoDB, AmazonDynamoDBClient }
-import com.amazonaws.services.dynamodbv2.streamsadapter.{ AmazonDynamoDBStreamsAdapterClient, StreamsWorkerFactory }
+import com.amazonaws.services.cloudwatch.{AmazonCloudWatch, AmazonCloudWatchClient}
+import com.amazonaws.services.dynamodbv2.{AmazonDynamoDB, AmazonDynamoDBClient}
+import com.amazonaws.services.dynamodbv2.streamsadapter.{AmazonDynamoDBStreamsAdapterClient, StreamsWorkerFactory}
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcessorFactory
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{ KinesisClientLibConfiguration, Worker }
-import com.amazonaws.services.kinesis.clientlibrary.types.{ InitializationInput, ShutdownInput }
+import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{KinesisClientLibConfiguration, Worker}
+import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ShutdownInput}
 import com.amazonaws.services.kinesis.metrics.interfaces.IMetricsFactory
 import com.amazonaws.services.kinesis.model.Record
 import com.github.j5ik2o.ak.kcl.dsl.KCLSource
 import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.RecordSet
-import com.github.j5ik2o.ak.kcl.stage.{ CommittableRecord, KCLSourceStage }
+import com.github.j5ik2o.ak.kcl.stage.{CommittableRecord, KCLSourceStage}
 
 import java.util.concurrent.ExecutorService
-import scala.concurrent.duration.{ DurationInt, FiniteDuration }
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
 
 object KCLSourceOnDynamoDBStreams {
 
@@ -37,7 +38,7 @@ object KCLSourceOnDynamoDBStreams {
           (
               onInitializeCallback: AsyncCallback[InitializationInput],
               onRecordCallback: AsyncCallback[RecordSet],
-              onShutdownCallback: AsyncCallback[ShutdownInput]
+              onShutdownCallback: AsyncCallback[Try[ShutdownInput]]
           ) =>
             (amazonCloudWatchClientOpt, metricsFactoryOpt) match {
               case (Some(amazonCloudWatchClient), None) =>
@@ -84,7 +85,7 @@ object KCLSourceOnDynamoDBStreams {
         (
             onInitializeCallback: AsyncCallback[InitializationInput],
             onRecordCallback: AsyncCallback[RecordSet],
-            onShutdownCallback: AsyncCallback[ShutdownInput]
+            onShutdownCallback: AsyncCallback[Try[ShutdownInput]]
         ) =>
           (amazonCloudWatchClientOpt, metricsFactoryOpt) match {
             case (Some(amazonCloudWatchClient), None) =>

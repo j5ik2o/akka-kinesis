@@ -35,7 +35,7 @@ import java.net.InetAddress
 import java.util
 import java.util.UUID
 import java.util.concurrent.Executors
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 class KCLSourceOnDynamoDBStreamsSpec
     extends TestKit(ActorSystem("KCLSourceInDynamoDBStreamsSpec"))
