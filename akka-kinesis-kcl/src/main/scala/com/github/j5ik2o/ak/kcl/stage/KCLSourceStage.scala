@@ -2,29 +2,42 @@ package com.github.j5ik2o.ak.kcl.stage
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-import akka.stream.stage.{AsyncCallback, _}
-import akka.stream.{Attributes, Outlet, SourceShape}
+import akka.stream.stage.{ AsyncCallback, _ }
+import akka.stream.{ Attributes, Outlet, SourceShape }
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB
 import com.amazonaws.services.kinesis.AmazonKinesis
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.IRecordProcessorCheckpointer
-import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{KinesisClientLibConfiguration, LeaderDecider, ShardPrioritization, ShardSyncer, ShutdownReason, Worker, WorkerStateChangeListener}
+import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{ IRecordProcessor, IRecordProcessorFactory }
+import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{
+  KinesisClientLibConfiguration,
+  LeaderDecider,
+  ShardPrioritization,
+  ShardSyncer,
+  ShutdownReason,
+  Worker,
+  WorkerStateChangeListener
+}
 import com.amazonaws.services.kinesis.clientlibrary.proxies.IKinesisProxy
-import com.amazonaws.services.kinesis.clientlibrary.types.{ExtendedSequenceNumber, InitializationInput, ProcessRecordsInput, ShutdownInput}
+import com.amazonaws.services.kinesis.clientlibrary.types.{
+  ExtendedSequenceNumber,
+  InitializationInput,
+  ProcessRecordsInput,
+  ShutdownInput
+}
 import com.amazonaws.services.kinesis.leases.impl.KinesisClientLease
-import com.amazonaws.services.kinesis.leases.interfaces.{ILeaseManager, ILeaseRenewer, ILeaseTaker, LeaseSelector}
+import com.amazonaws.services.kinesis.leases.interfaces.{ ILeaseManager, ILeaseRenewer, ILeaseTaker, LeaseSelector }
 import com.amazonaws.services.kinesis.metrics.interfaces.IMetricsFactory
 import com.amazonaws.services.kinesis.model.Record
-import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.{RecordSet, WorkerF}
+import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.{ RecordSet, WorkerF }
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.Queue
-import scala.concurrent.duration.{FiniteDuration, _}
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService, Future, Promise}
-import scala.util.control.{NoStackTrace, NonFatal}
-import scala.util.{Failure, Success, Try}
+import scala.concurrent.duration.{ FiniteDuration, _ }
+import scala.concurrent.{ ExecutionContext, ExecutionContextExecutorService, Future, Promise }
+import scala.util.control.{ NoStackTrace, NonFatal }
+import scala.util.{ Failure, Success, Try }
 
 sealed trait KinesisWorkerSourceError extends NoStackTrace
 
@@ -35,9 +48,14 @@ object KCLSourceStage {
   case class KCLMaterializedValue(workerFuture: Future[Worker], initializationInputFuture: InitializationInput)
 
   type RecordProcessorF =
-    (AsyncCallback[InitializationInput], AsyncCallback[RecordSet], AsyncCallback[Try[ShutdownInput]]) => IRecordProcessor
+    (
+        AsyncCallback[InitializationInput],
+        AsyncCallback[RecordSet],
+        AsyncCallback[Try[ShutdownInput]]
+    ) => IRecordProcessor
 
-  type WorkerF = (AsyncCallback[InitializationInput], AsyncCallback[RecordSet], AsyncCallback[Try[ShutdownInput]]) => Worker
+  type WorkerF =
+    (AsyncCallback[InitializationInput], AsyncCallback[RecordSet], AsyncCallback[Try[ShutdownInput]]) => Worker
 
   case class RecordSet(
       recordProcessor: RecordProcessor,
@@ -121,7 +139,7 @@ object KCLSourceStage {
       onRecordsCallback: AsyncCallback[RecordSet],
       onShutdownCallback: AsyncCallback[Try[ShutdownInput]]
   ) extends IRecordProcessor {
-    private[this] val logger = LoggerFactory.getLogger(getClass)
+    private[this] val logger                                                   = LoggerFactory.getLogger(getClass)
     private[this] var _shardId: String                                         = _
     private[this] var _extendedSequenceNumber: ExtendedSequenceNumber          = _
     private[this] var _pendingCheckpointSequenceNumber: ExtendedSequenceNumber = _
@@ -164,18 +182,18 @@ object KCLSourceStage {
     override def shutdown(shutdownInput: ShutdownInput): Unit = {
       _maybeShutdownReason = Some(shutdownInput.getShutdownReason)
       logger.debug(
-          s"shutdown: shutdownInput = shardId:$shardId, shutdownReason:${shutdownInput.getShutdownReason}"
-        )
-        if (shutdownInput.getShutdownReason == ShutdownReason.TERMINATE) {
-          try {
-            shutdownInput.getCheckpointer.checkpoint()
-            logger.debug(s"shutdown: checkpoint saving is success! shardId = $shardId")
-            onShutdownCallback.invoke(Success(shutdownInput))
-          } catch {
-            case NonFatal(ex: Throwable) =>
-              onShutdownCallback.invoke(Failure(ex))
-          }
+        s"shutdown: shutdownInput = shardId:$shardId, shutdownReason:${shutdownInput.getShutdownReason}"
+      )
+      if (shutdownInput.getShutdownReason == ShutdownReason.TERMINATE) {
+        try {
+          shutdownInput.getCheckpointer.checkpoint()
+          logger.debug(s"shutdown: checkpoint saving is success! shardId = $shardId")
+          onShutdownCallback.invoke(Success(shutdownInput))
+        } catch {
+          case NonFatal(ex: Throwable) =>
+            onShutdownCallback.invoke(Failure(ex))
         }
+      }
     }
   }
 }
