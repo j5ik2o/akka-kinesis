@@ -17,6 +17,7 @@ import com.github.j5ik2o.ak.kcl.stage.{ CommittableRecord, KCLSourceStage }
 import java.util.concurrent.ExecutorService
 import scala.concurrent.duration.{ DurationInt, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.Try
 
 object KCLSourceOnDynamoDBStreams {
 
@@ -37,7 +38,7 @@ object KCLSourceOnDynamoDBStreams {
           (
               onInitializeCallback: AsyncCallback[InitializationInput],
               onRecordCallback: AsyncCallback[RecordSet],
-              onShutdownCallback: AsyncCallback[ShutdownInput]
+              onShutdownCallback: AsyncCallback[Try[ShutdownInput]]
           ) =>
             (amazonCloudWatchClientOpt, metricsFactoryOpt) match {
               case (Some(amazonCloudWatchClient), None) =>
@@ -84,7 +85,7 @@ object KCLSourceOnDynamoDBStreams {
         (
             onInitializeCallback: AsyncCallback[InitializationInput],
             onRecordCallback: AsyncCallback[RecordSet],
-            onShutdownCallback: AsyncCallback[ShutdownInput]
+            onShutdownCallback: AsyncCallback[Try[ShutdownInput]]
         ) =>
           (amazonCloudWatchClientOpt, metricsFactoryOpt) match {
             case (Some(amazonCloudWatchClient), None) =>

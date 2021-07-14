@@ -42,8 +42,8 @@ class KCLSourceSpec
 
   override implicit val patienceConfig: PatienceConfig =
     PatienceConfig(
-      timeout = Span(60 * sys.env.getOrElse("TEST_TIME_FACTOR", "1").toInt, Seconds),
-      interval = Span(500 * sys.env.getOrElse("TEST_TIME_FACTOR", "1").toInt, Millis)
+      timeout = Span(60 * sys.env.getOrElse("TEST_TIME_FACTOR", "2").toInt, Seconds),
+      interval = Span(500 * sys.env.getOrElse("TEST_TIME_FACTOR", "2").toInt, Millis)
     )
 
   val localStack: LocalStackContainer = LocalStackContainer(
