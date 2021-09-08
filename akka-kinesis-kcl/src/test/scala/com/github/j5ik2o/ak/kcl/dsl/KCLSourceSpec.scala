@@ -115,7 +115,7 @@ class KCLSourceSpec
         case Success(result) if result.getStreamDescription.getStreamStatus == "ACTIVE" =>
           println(s"waiting completed: $streamName, $result")
           Success(())
-        case Failure(ex: ResourceNotFoundException) =>
+        case Failure(_: ResourceNotFoundException) =>
           Thread.sleep(waitDuration.toMillis * sys.env.getOrElse("TEST_TIME_FACTOR", "1").toInt)
           println("waiting until stream creates")
           go
