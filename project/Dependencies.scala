@@ -33,7 +33,7 @@ object Dependencies {
   }
 
   object iheart {
-    val ficus = "com.iheart" %% "ficus" % "1.5.1"
+    val ficus = "com.iheart" %% "ficus" % "1.5.2"
   }
 
   object scalaLang {
