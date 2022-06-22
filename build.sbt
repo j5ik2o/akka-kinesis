@@ -18,8 +18,8 @@ def crossScalacOptions(scalaVersion: String): Seq[String] =
 
 lazy val baseSettings = Seq(
   organization := "com.github.j5ik2o",
-  homepage     := Some(url("https://github.com/j5ik2o/akka-kinesis")),
-  licenses     := List("The MIT License" -> url("http://opensource.org/licenses/MIT")),
+  homepage := Some(url("https://github.com/j5ik2o/akka-kinesis")),
+  licenses := List("The MIT License" -> url("http://opensource.org/licenses/MIT")),
   developers := List(
     Developer(
       id = "j5ik2o",
@@ -28,7 +28,7 @@ lazy val baseSettings = Seq(
       url = url("https://blog.j5ik2o.me")
     )
   ),
-  scalaVersion       := Versions.scala212Version,
+  scalaVersion := Versions.scala212Version,
   crossScalaVersions := Seq(Versions.scala212Version, Versions.scala213Version),
   scalacOptions ++= (Seq(
     "-unchecked",
@@ -42,7 +42,7 @@ lazy val baseSettings = Seq(
     Resolver.sonatypeRepo("snapshots"),
     "Seasar Repository" at "https://maven.seasar.org/maven2/"
   ),
-  Test / publishArtifact   := false,
+  Test / publishArtifact := false,
   Test / parallelExecution := false,
   Compile / doc / sources := {
     val old = (Compile / doc / sources).value
@@ -78,7 +78,7 @@ val dependenciesCommonSettings = Seq(
     typesafe.akka.testkit             % Test,
     typesafe.akka.streamTestkit       % Test
   ).map(_.cross(CrossVersion.for3Use2_13)),
-  Test / fork    := true,
+  Test / fork := true,
   Test / envVars := Map("AWS_CBOR_DISABLE" -> "1")
 )
 
