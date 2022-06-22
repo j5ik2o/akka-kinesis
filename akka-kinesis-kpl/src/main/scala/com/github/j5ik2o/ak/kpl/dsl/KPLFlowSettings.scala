@@ -10,7 +10,7 @@ object KPLFlowSettings {
 
   sealed trait RetryBackoffStrategy
   case object Exponential extends RetryBackoffStrategy
-  case object Lineal      extends RetryBackoffStrategy
+  case object Lineal extends RetryBackoffStrategy
 
   val exponential = Exponential
   val lineal      = Lineal
