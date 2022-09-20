@@ -7,7 +7,7 @@ object Dependencies {
     val scala213Version            = "2.13.8"
     val scala3Version              = "3.0.0"
     val awsSdkVersion              = "1.12.245"
-    val akkaVersion                = "2.6.13"
+    val akkaVersion                = "2.6.19"
     val testcontainersScalaVersion = "0.40.8"
     val scalaTestVersion           = "3.2.9"
     val logbackVersion             = "1.2.11"
@@ -16,6 +16,7 @@ object Dependencies {
   object typesafe {
 
     object akka {
+      val actor         = "com.typesafe.akka" %% "akka-actor"          % Versions.akkaVersion
       val slf4j         = "com.typesafe.akka" %% "akka-slf4j"          % Versions.akkaVersion
       val stream        = "com.typesafe.akka" %% "akka-stream"         % Versions.akkaVersion
       val testkit       = "com.typesafe.akka" %% "akka-testkit"        % Versions.akkaVersion
@@ -37,7 +38,7 @@ object Dependencies {
   }
 
   object scalaLang {
-    val scalaJava8Compat = "org.scala-lang.modules" %% "scala-java8-compat" % "0.9.1"
+    val scalaJava8Compat = "org.scala-lang.modules" %% "scala-java8-compat" % "1.0.2"
   }
 
   object dimafeng {

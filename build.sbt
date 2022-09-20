@@ -28,8 +28,8 @@ lazy val baseSettings = Seq(
       url = url("https://blog.j5ik2o.me")
     )
   ),
-  scalaVersion := Versions.scala212Version,
-  crossScalaVersions := Seq(Versions.scala212Version, Versions.scala213Version),
+  scalaVersion := Versions.scala213Version,
+  crossScalaVersions := Seq(Versions.scala213Version),
   scalacOptions ++= (Seq(
     "-unchecked",
     "-feature",
@@ -38,8 +38,7 @@ lazy val baseSettings = Seq(
     "UTF-8",
     "-language:_"
   ) ++ crossScalacOptions(scalaVersion.value)),
-  resolvers ++= Seq(
-    Resolver.sonatypeRepo("snapshots"),
+  resolvers ++= Resolver.sonatypeOssRepos("snapshots") ++ Seq(
     "Seasar Repository" at "https://maven.seasar.org/maven2/"
   ),
   Test / publishArtifact := false,
@@ -71,6 +70,7 @@ val dependenciesCommonSettings = Seq(
     scalatest.scalatest % Test
   ),
   libraryDependencies ++= Seq(
+    typesafe.akka.actor excludeAll (ExclusionRule(organization = "org.scala-lang.modules")),
     typesafe.akka.slf4j,
     typesafe.akka.stream,
     dimafeng.testcontainersScalatest  % Test,
