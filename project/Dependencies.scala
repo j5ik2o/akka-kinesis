@@ -10,7 +10,7 @@ object Dependencies {
     val akkaVersion                = "2.6.19"
     val testcontainersScalaVersion = "0.40.13"
     val scalaTestVersion           = "3.2.9"
-    val logbackVersion             = "1.2.11"
+    val logbackVersion             = "1.4.6"
   }
 
   object typesafe {
