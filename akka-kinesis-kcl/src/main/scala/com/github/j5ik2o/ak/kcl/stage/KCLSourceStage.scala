@@ -32,7 +32,7 @@ import com.amazonaws.services.kinesis.model.Record
 import com.github.j5ik2o.ak.kcl.stage.KCLSourceStage.{ RecordSet, WorkerF }
 import org.slf4j.LoggerFactory
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.collection.immutable.Queue
 import scala.concurrent.duration.{ FiniteDuration, _ }
 import scala.concurrent.{ ExecutionContext, ExecutionContextExecutorService, Future, Promise }

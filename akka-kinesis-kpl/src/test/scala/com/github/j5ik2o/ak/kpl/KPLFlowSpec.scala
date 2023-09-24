@@ -148,7 +148,7 @@ class KPLFlowSpec
             .withData(ByteBuffer.wrap(data.getBytes()))
         )
         .viaMat(KillSwitches.single)(Keep.right)
-        .viaMat(KPLFlow(streamName, kinesisProducerConfiguration, kplFlowSettings))(Keep.left)
+        .viaMat(KPLFlow(kinesisProducerConfiguration, kplFlowSettings))(Keep.left)
         .toMat(Sink.foreach { msg => result = msg })(Keep.both)
         .run()
 

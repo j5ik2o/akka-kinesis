@@ -7,7 +7,7 @@ import akka.stream.{ Attributes, FlowShape, Inlet, Outlet }
 import com.amazonaws.services.kinesis.producer._
 import com.github.j5ik2o.ak.kpl.dsl.KPLFlowSettings.{ Exponential, Lineal, RetryBackoffStrategy }
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future, Promise }
@@ -107,7 +107,7 @@ class KPLFlowStage(
           scheduleOnce(
             retryToken,
             backoffStrategy match {
-              case Exponential => scala.math.pow(retryBaseInMillis, attempt).millis
+              case Exponential => scala.math.pow(retryBaseInMillis.toDouble, attempt.toDouble).millis
               case Lineal      => retryInitialTimeout * attempt
             }
           )

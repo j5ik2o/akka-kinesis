@@ -13,8 +13,8 @@ import scala.concurrent.{ ExecutionContext, Future }
 
 object KPLFlow {
 
-  def apply(streamName: String, kinesisProducerConfiguration: KinesisProducerConfiguration, settings: KPLFlowSettings)(
-      implicit ec: ExecutionContext
+  def apply(kinesisProducerConfiguration: KinesisProducerConfiguration, settings: KPLFlowSettings)(implicit
+      ec: ExecutionContext
   ): Flow[UserRecord, UserRecordResult, Future[KinesisProducer]] = {
     Flow.fromGraph(
       new KPLFlowStage(
