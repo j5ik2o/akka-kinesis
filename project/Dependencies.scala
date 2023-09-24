@@ -30,7 +30,7 @@ object Dependencies {
     val dynamodb             = "com.amazonaws" % "aws-java-sdk-dynamodb"            % Versions.awsSdkVersion
     val kinesisProducer      = "com.amazonaws" % "amazon-kinesis-producer"          % "0.14.12"
     val kinesisClient        = "com.amazonaws" % "amazon-kinesis-client"            % "1.15.0"
-    val streamKinesisAdaptor = "com.amazonaws" % "dynamodb-streams-kinesis-adapter" % "1.5.1"
+    val streamKinesisAdaptor = "com.amazonaws" % "dynamodb-streams-kinesis-adapter" % "1.6.0"
   }
 
   object iheart {
