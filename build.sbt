@@ -53,7 +53,6 @@ lazy val baseSettings = Seq(
   },
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
-  // Remove me when scalafix is stable and feature-complete on Scala 3
   ThisBuild / scalafixScalaBinaryVersion := (CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((2, _)) => CrossVersion.binaryScalaVersion(scalaVersion.value)
     case _            => CrossVersion.binaryScalaVersion(Versions.scala212Version)
