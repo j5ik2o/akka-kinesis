@@ -4,31 +4,31 @@ import java.nio.ByteBuffer
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Keep, Sink, Source}
-import akka.stream.{ActorMaterializer, KillSwitches, Materializer}
+import akka.stream.scaladsl.{ Keep, Sink, Source }
+import akka.stream.{ ActorMaterializer, KillSwitches, Materializer }
 import akka.testkit.TestKit
 import com.amazonaws.SDKGlobalConfiguration
-import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicAWSCredentials}
+import com.amazonaws.auth.{ AWSStaticCredentialsProvider, BasicAWSCredentials }
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.kinesis.model.ResourceNotFoundException
-import com.amazonaws.services.kinesis.producer.{KinesisProducerConfiguration, UserRecord, UserRecordResult}
-import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
-import com.dimafeng.testcontainers.{Container, ForAllTestContainer, GenericContainer}
-import com.github.j5ik2o.ak.kpl.dsl.{KPLFlow, KPLFlowSettings}
+import com.amazonaws.services.kinesis.producer.{ KinesisProducerConfiguration, UserRecord, UserRecordResult }
+import com.amazonaws.services.kinesis.{ AmazonKinesis, AmazonKinesisClientBuilder }
+import com.dimafeng.testcontainers.{ Container, ForAllTestContainer, GenericContainer }
+import com.github.j5ik2o.ak.kpl.dsl.{ KPLFlow, KPLFlowSettings }
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.testcontainers.DockerClientFactory
-import org.testcontainers.containers.localstack.{LocalStackContainer => JavaLocalStackContainer}
+import org.testcontainers.containers.localstack.{ LocalStackContainer => JavaLocalStackContainer }
 import org.testcontainers.containers.wait.strategy.Wait
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration.{Duration, _}
-import scala.util.{Failure, Success, Try}
+import scala.concurrent.duration.{ Duration, _ }
+import scala.util.{ Failure, Success, Try }
 
 class KPLFlowSpec
     extends TestKit(ActorSystem("KPLFlowSpec"))
@@ -133,8 +133,8 @@ class KPLFlowSpec
 
   "KPLFlow" - {
     "publisher" in {
-      implicit val ec: ExecutionContext  = system.dispatcher
-      implicit val mat: Materializer = ActorMaterializer()
+      implicit val ec: ExecutionContext = system.dispatcher
+      implicit val mat: Materializer    = ActorMaterializer()
 
       var result: UserRecordResult = null
       val partitionKey             = "123"
