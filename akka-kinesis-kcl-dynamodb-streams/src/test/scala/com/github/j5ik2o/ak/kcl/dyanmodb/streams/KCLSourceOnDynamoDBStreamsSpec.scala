@@ -22,6 +22,7 @@ import com.amazonaws.services.kinesis.clientlibrary.lib.worker.InitialPositionIn
 import com.dimafeng.testcontainers._
 import com.github.j5ik2o.ak.kcl.dsl.{ KCLFlow, RandomPortUtil }
 import com.github.j5ik2o.ak.kcl.util.KCLConfiguration
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.freespec.AnyFreeSpecLike
@@ -40,9 +41,9 @@ import scala.collection.JavaConverters._
 class KCLSourceOnDynamoDBStreamsSpec
     extends TestKit(ActorSystem("KCLSourceInDynamoDBStreamsSpec"))
     with AnyFreeSpecLike
+    with BeforeAndAfterAll
     with Matchers
     with ScalaFutures
-    with ForAllTestContainer
     with Eventually {
   System.setProperty(SDKGlobalConfiguration.AWS_CBOR_DISABLE_SYSTEM_PROPERTY, "true")
 
@@ -77,14 +78,14 @@ class KCLSourceOnDynamoDBStreamsSpec
   val applicationName: String = "kcl-source-spec"
   val workerId: String        = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID()
 
-  override def container: Container = MultipleContainers(dynamoDbLocalContainer, localStack)
+  def container: Container = MultipleContainers(dynamoDbLocalContainer, localStack)
 
   var awsDynamoDB: AmazonDynamoDB            = _
   var dynamoDBStreams: AmazonDynamoDBStreams = _
   var awsCloudWatch: AmazonCloudWatch        = _
   val tableName: String                      = "test-" + UUID.randomUUID().toString
 
-  override def afterStart(): Unit = {
+  def afterStart(): Unit = {
     val credentialsProvider: AWSCredentialsProvider = localStack.defaultCredentialsProvider
     val dynamoDbEndpointConfiguration   = new EndpointConfiguration(dynamoDBEndpoint, Regions.AP_NORTHEAST_1.getName)
     val cloudwatchEndpointConfiguration = localStack.endpointConfiguration(JavaLocalStackContainer.Service.CLOUDWATCH)
@@ -109,7 +110,11 @@ class KCLSourceOnDynamoDBStreamsSpec
 
   }
 
-  override def beforeStop(): Unit = {}
+  override protected def beforeAll(): Unit = {
+    super.beforeAll()
+    container.start()
+    afterStart()
+  }
 
   import system.dispatcher
 

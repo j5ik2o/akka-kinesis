@@ -5,7 +5,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{ Keep, Sink, Source }
-import akka.stream.{ ActorMaterializer, KillSwitches }
+import akka.stream.{ ActorMaterializer, KillSwitches, Materializer }
 import akka.testkit.TestKit
 import com.amazonaws.SDKGlobalConfiguration
 import com.amazonaws.auth.{ AWSStaticCredentialsProvider, BasicAWSCredentials }
@@ -14,7 +14,7 @@ import com.amazonaws.regions.Regions
 import com.amazonaws.services.kinesis.model.ResourceNotFoundException
 import com.amazonaws.services.kinesis.producer.{ KinesisProducerConfiguration, UserRecord, UserRecordResult }
 import com.amazonaws.services.kinesis.{ AmazonKinesis, AmazonKinesisClientBuilder }
-import com.dimafeng.testcontainers.{ Container, ForAllTestContainer, GenericContainer }
+import com.dimafeng.testcontainers.{ Container, GenericContainer }
 import com.github.j5ik2o.ak.kpl.dsl.{ KPLFlow, KPLFlowSettings }
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
@@ -26,6 +26,7 @@ import org.testcontainers.containers.wait.strategy.Wait
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{ Duration, _ }
 import scala.util.{ Failure, Success, Try }
 
@@ -35,7 +36,6 @@ class KPLFlowSpec
     with BeforeAndAfterAll
     with Matchers
     with ScalaFutures
-    with ForAllTestContainer
     with Eventually {
 
   System.setProperty(SDKGlobalConfiguration.AWS_CBOR_DISABLE_SYSTEM_PROPERTY, "true")
@@ -57,7 +57,7 @@ class KPLFlowSpec
     waitStrategy = Some(Wait.forLogMessage(".*Ready\\.\n", 1))
   )
 
-  override def container: Container = localStack
+  def container: Container = localStack
 
   var awsKinesisClient: AmazonKinesis                            = _
   var kinesisProducerConfiguration: KinesisProducerConfiguration = _
@@ -96,7 +96,7 @@ class KPLFlowSpec
     }
   }
 
-  override def afterStart(): Unit = {
+  def afterStart(): Unit = {
     val credentialsProvider = new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x"))
     val host                = DockerClientFactory.instance().dockerHostIpAddress()
     val kinesisPort         = localStack.container.getMappedPort(JavaLocalStackContainer.Service.KINESIS.getPort)
@@ -126,14 +126,16 @@ class KPLFlowSpec
       .setVerifyCertificate(false)
   }
 
-  override def beforeStop(): Unit = {
-    awsKinesisClient.deleteStream(streamName)
+  override protected def beforeAll(): Unit = {
+    super.beforeAll()
+    container.start()
+    afterStart()
   }
 
   "KPLFlow" - {
     "publisher" in {
-      implicit val ec  = system.dispatcher
-      implicit val mat = ActorMaterializer()
+      implicit val ec: ExecutionContext = system.dispatcher
+      implicit val mat: Materializer    = ActorMaterializer()
 
       var result: UserRecordResult = null
       val partitionKey             = "123"

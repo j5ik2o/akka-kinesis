@@ -14,8 +14,9 @@ import com.amazonaws.services.kinesis.metrics.impl.NullMetricsFactory
 import com.amazonaws.services.kinesis.model.{ PutRecordRequest, Record, ResourceNotFoundException }
 import com.amazonaws.services.kinesis.{ AmazonKinesis, AmazonKinesisClientBuilder }
 import com.amazonaws.SDKGlobalConfiguration
-import com.dimafeng.testcontainers.{ Container, ForAllTestContainer, LocalStackContainer }
+import com.dimafeng.testcontainers.{ Container, LocalStackContainer }
 import com.github.j5ik2o.ak.kcl.util.KCLConfiguration
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.should.Matchers
@@ -34,9 +35,9 @@ import scala.util.{ Failure, Success, Try }
 class KCLSourceSpec
     extends TestKit(ActorSystem("KCLSourceSpec"))
     with AnyFreeSpecLike
+    with BeforeAndAfterAll
     with Matchers
     with ScalaFutures
-    with ForAllTestContainer
     with Eventually {
   System.setProperty(SDKGlobalConfiguration.AWS_CBOR_DISABLE_SYSTEM_PROPERTY, "true")
 
@@ -59,14 +60,14 @@ class KCLSourceSpec
   val streamName: String      = sys.env.getOrElse("STREAM_NAME", "kcl-flow-spec") + UUID.randomUUID().toString
   val workerId: String        = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID()
 
-  override def container: Container = localStack
+  def container: Container = localStack
 
   var awsKinesisClient: AmazonKinesis                              = _
   var awsDynamoDBClient: AmazonDynamoDBAsync                       = _
   var awsCloudWatch: AmazonCloudWatch                              = _
   var kinesisClientLibConfiguration: KinesisClientLibConfiguration = _
 
-  override def afterStart(): Unit = {
+  def afterStart(): Unit = {
     val credentialsProvider             = localStack.defaultCredentialsProvider
     val dynamoDbEndpointConfiguration   = localStack.endpointConfiguration(JavaLocalStackContainer.Service.DYNAMODB)
     val kinesisEndpointConfiguration    = localStack.endpointConfiguration(JavaLocalStackContainer.Service.KINESIS)
@@ -106,6 +107,12 @@ class KCLSourceSpec
       )
     )
 
+  }
+
+  override protected def beforeAll(): Unit = {
+    super.beforeAll()
+    container.start()
+    afterStart()
   }
 
   def waitStreamToCreated(streamName: String, waitDuration: Duration = 1.seconds): Try[Unit] = {
