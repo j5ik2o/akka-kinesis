@@ -14,8 +14,11 @@ import com.amazonaws.services.kinesis.metrics.impl.NullMetricsFactory
 import com.amazonaws.services.kinesis.model.{ PutRecordRequest, Record, ResourceNotFoundException }
 import com.amazonaws.services.kinesis.{ AmazonKinesis, AmazonKinesisClientBuilder }
 import com.amazonaws.SDKGlobalConfiguration
-import com.dimafeng.testcontainers.{ Container, ForAllTestContainer, LocalStackContainer }
+import com.amazonaws.auth.{ AWSStaticCredentialsProvider, BasicAWSCredentials }
+import com.amazonaws.client.builder.AwsClientBuilder
+import com.dimafeng.testcontainers.LocalStackContainer
 import com.github.j5ik2o.ak.kcl.util.KCLConfiguration
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.should.Matchers
@@ -34,9 +37,9 @@ import scala.util.{ Failure, Success, Try }
 class KCLSourceSpec
     extends TestKit(ActorSystem("KCLSourceSpec"))
     with AnyFreeSpecLike
+    with BeforeAndAfterAll
     with Matchers
     with ScalaFutures
-    with ForAllTestContainer
     with Eventually {
   System.setProperty(SDKGlobalConfiguration.AWS_CBOR_DISABLE_SYSTEM_PROPERTY, "true")
 
@@ -47,7 +50,6 @@ class KCLSourceSpec
     )
 
   val localStack: LocalStackContainer = LocalStackContainer(
-    tag = "0.9.5",
     services = Seq(
       JavaLocalStackContainer.Service.DYNAMODB,
       JavaLocalStackContainer.Service.KINESIS,
@@ -59,18 +61,27 @@ class KCLSourceSpec
   val streamName: String      = sys.env.getOrElse("STREAM_NAME", "kcl-flow-spec") + UUID.randomUUID().toString
   val workerId: String        = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID()
 
-  override def container: Container = localStack
-
   var awsKinesisClient: AmazonKinesis                              = _
   var awsDynamoDBClient: AmazonDynamoDBAsync                       = _
   var awsCloudWatch: AmazonCloudWatch                              = _
   var kinesisClientLibConfiguration: KinesisClientLibConfiguration = _
 
-  override def afterStart(): Unit = {
-    val credentialsProvider             = localStack.defaultCredentialsProvider
-    val dynamoDbEndpointConfiguration   = localStack.endpointConfiguration(JavaLocalStackContainer.Service.DYNAMODB)
-    val kinesisEndpointConfiguration    = localStack.endpointConfiguration(JavaLocalStackContainer.Service.KINESIS)
-    val cloudwatchEndpointConfiguration = localStack.endpointConfiguration(JavaLocalStackContainer.Service.CLOUDWATCH)
+  def afterStart(): Unit = {
+    val credentialsProvider = new AWSStaticCredentialsProvider(
+      new BasicAWSCredentials(localStack.container.getAccessKey, localStack.container.getSecretKey)
+    )
+    val dynamoDbEndpointConfiguration = new AwsClientBuilder.EndpointConfiguration(
+      localStack.container.getEndpointOverride(JavaLocalStackContainer.Service.DYNAMODB).toString,
+      localStack.container.getRegion
+    )
+    val kinesisEndpointConfiguration = new AwsClientBuilder.EndpointConfiguration(
+      localStack.container.getEndpointOverride(JavaLocalStackContainer.Service.KINESIS).toString,
+      localStack.container.getRegion
+    )
+    val cloudwatchEndpointConfiguration = new AwsClientBuilder.EndpointConfiguration(
+      localStack.container.getEndpointOverride(JavaLocalStackContainer.Service.CLOUDWATCH).toString,
+      localStack.container.getRegion
+    )
 
     awsDynamoDBClient = AmazonDynamoDBAsyncClientBuilder
       .standard()
@@ -138,6 +149,17 @@ class KCLSourceSpec
         waitStreamToCreated(streamName)
       }
     }
+  }
+
+  override protected def beforeAll(): Unit = {
+    super.beforeAll()
+    localStack.start()
+    afterStart()
+  }
+
+  override protected def afterAll(): Unit = {
+    super.afterAll()
+    localStack.stop()
   }
 
   import system.dispatcher

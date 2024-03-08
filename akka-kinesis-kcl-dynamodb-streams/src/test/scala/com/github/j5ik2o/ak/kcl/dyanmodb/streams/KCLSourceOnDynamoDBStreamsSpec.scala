@@ -5,7 +5,7 @@ import akka.stream.KillSwitches
 import akka.stream.scaladsl.{ Keep, Sink }
 import akka.testkit.TestKit
 import com.amazonaws.SDKGlobalConfiguration
-import com.amazonaws.auth.AWSCredentialsProvider
+import com.amazonaws.auth.{ AWSCredentialsProvider, AWSStaticCredentialsProvider, BasicAWSCredentials }
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.cloudwatch.{ AmazonCloudWatch, AmazonCloudWatchClient }
@@ -22,6 +22,7 @@ import com.amazonaws.services.kinesis.clientlibrary.lib.worker.InitialPositionIn
 import com.dimafeng.testcontainers._
 import com.github.j5ik2o.ak.kcl.dsl.{ KCLFlow, RandomPortUtil }
 import com.github.j5ik2o.ak.kcl.util.KCLConfiguration
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.freespec.AnyFreeSpecLike
@@ -40,14 +41,17 @@ import scala.collection.JavaConverters._
 class KCLSourceOnDynamoDBStreamsSpec
     extends TestKit(ActorSystem("KCLSourceInDynamoDBStreamsSpec"))
     with AnyFreeSpecLike
+    with BeforeAndAfterAll
     with Matchers
     with ScalaFutures
-    with ForAllTestContainer
     with Eventually {
   System.setProperty(SDKGlobalConfiguration.AWS_CBOR_DISABLE_SYSTEM_PROPERTY, "true")
 
-  implicit val defaultPatience: PatienceConfig =
-    PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
+  override implicit val patienceConfig: PatienceConfig =
+    PatienceConfig(
+      timeout = Span(60 * sys.env.getOrElse("TEST_TIME_FACTOR", "2").toInt, Seconds),
+      interval = Span(500 * sys.env.getOrElse("TEST_TIME_FACTOR", "2").toInt, Millis)
+    )
 
   protected val dynamoDBImageVersion = "1.13.2"
 
@@ -68,7 +72,6 @@ class KCLSourceOnDynamoDBStreamsSpec
   )
 
   private val localStack: LocalStackContainer = LocalStackContainer(
-    tag = "0.9.5",
     services = Seq(
       JavaLocalStackContainer.Service.CLOUDWATCH
     )
@@ -77,17 +80,22 @@ class KCLSourceOnDynamoDBStreamsSpec
   val applicationName: String = "kcl-source-spec"
   val workerId: String        = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID()
 
-  override def container: Container = MultipleContainers(dynamoDbLocalContainer, localStack)
+  val container: Container = MultipleContainers(dynamoDbLocalContainer, localStack)
 
   var awsDynamoDB: AmazonDynamoDB            = _
   var dynamoDBStreams: AmazonDynamoDBStreams = _
   var awsCloudWatch: AmazonCloudWatch        = _
   val tableName: String                      = "test-" + UUID.randomUUID().toString
 
-  override def afterStart(): Unit = {
-    val credentialsProvider: AWSCredentialsProvider = localStack.defaultCredentialsProvider
-    val dynamoDbEndpointConfiguration   = new EndpointConfiguration(dynamoDBEndpoint, Regions.AP_NORTHEAST_1.getName)
-    val cloudwatchEndpointConfiguration = localStack.endpointConfiguration(JavaLocalStackContainer.Service.CLOUDWATCH)
+  def afterStart(): Unit = {
+    val credentialsProvider = new AWSStaticCredentialsProvider(
+      new BasicAWSCredentials(localStack.container.getAccessKey, localStack.container.getSecretKey)
+    )
+    val dynamoDbEndpointConfiguration = new EndpointConfiguration(dynamoDBEndpoint, Regions.AP_NORTHEAST_1.getName)
+    val cloudwatchEndpointConfiguration = new EndpointConfiguration(
+      localStack.container.getEndpointOverride(JavaLocalStackContainer.Service.CLOUDWATCH).toString,
+      localStack.container.getRegion
+    )
 
     awsDynamoDB = AmazonDynamoDBClient
       .builder()
@@ -109,11 +117,20 @@ class KCLSourceOnDynamoDBStreamsSpec
 
   }
 
-  override def beforeStop(): Unit = {}
+  override protected def beforeAll(): Unit = {
+    super.beforeAll()
+    container.start()
+    afterStart()
+  }
+
+  override protected def afterAll(): Unit = {
+    super.afterAll()
+    container.stop()
+  }
 
   import system.dispatcher
 
-  "KCLSourceSpec" - {
+  "KCLSourceOnDynamoDBStreamsSpec" - {
     "dynamodb streams" in {
       val attributeDefinitions = new util.ArrayList[AttributeDefinition]
       attributeDefinitions.add(new AttributeDefinition().withAttributeName("Id").withAttributeType("N"))
@@ -141,8 +158,10 @@ class KCLSourceOnDynamoDBStreamsSpec
         Thread.sleep(1000)
       }
 
-      val streamArn                                   = table.getTableDescription.getLatestStreamArn
-      val credentialsProvider: AWSCredentialsProvider = localStack.defaultCredentialsProvider
+      val streamArn = table.getTableDescription.getLatestStreamArn
+      val credentialsProvider: AWSCredentialsProvider = new AWSStaticCredentialsProvider(
+        new BasicAWSCredentials(localStack.container.getAccessKey, localStack.container.getSecretKey)
+      )
 
       val kinesisClientLibConfiguration = KCLConfiguration.fromConfig(
         system.settings.config,
