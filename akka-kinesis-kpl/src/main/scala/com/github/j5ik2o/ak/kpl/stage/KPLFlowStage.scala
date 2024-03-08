@@ -118,12 +118,14 @@ class KPLFlowStage(
       }
 
       override def preStart(): Unit = {
+        log.info("start...")
         completionState = None
         inFlight = 0
         resultCallback = getAsyncCallback[RequestWithResult](handleResult)
         producer = new KinesisProducer(kinesisProducerConfiguration)
         promise.success(producer)
         pull(in)
+        log.info("start...done")
       }
 
       override def postStop(): Unit = {

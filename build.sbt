@@ -65,17 +65,18 @@ lazy val baseSettings = Seq(
 val dependenciesCommonSettings = Seq(
   libraryDependencies ++= Seq(
     amazonAws.kinesis,
+    slf4j.api,
     logback.classic     % Test,
     scalatest.scalatest % Test
   ),
   libraryDependencies ++= Seq(
     typesafe.akka.actor excludeAll (ExclusionRule(organization = "org.scala-lang.modules")),
-    typesafe.akka.slf4j,
-    typesafe.akka.stream,
-    dimafeng.testcontainersScalatest  % Test,
-    dimafeng.testcontainersLocalstack % Test,
-    typesafe.akka.testkit             % Test,
-    typesafe.akka.streamTestkit       % Test
+    typesafe.akka.slf4j excludeAll (ExclusionRule(organization = "org.slf4j")),
+    typesafe.akka.stream excludeAll (ExclusionRule(organization = "org.slf4j")),
+    dimafeng.testcontainersScalatest  % Test excludeAll (ExclusionRule(organization = "org.slf4j")),
+    dimafeng.testcontainersLocalstack % Test excludeAll (ExclusionRule(organization = "org.slf4j")),
+    typesafe.akka.testkit             % Test excludeAll (ExclusionRule(organization = "org.slf4j")),
+    typesafe.akka.streamTestkit       % Test excludeAll (ExclusionRule(organization = "org.slf4j"))
   ).map(_.cross(CrossVersion.for3Use2_13)),
   Test / fork := true,
   Test / envVars := Map("AWS_CBOR_DISABLE" -> "1")
@@ -86,9 +87,9 @@ val `akka-kinesis-kpl` = (project in file("akka-kinesis-kpl"))
   .settings(
     name := "akka-kinesis-kpl",
     libraryDependencies ++= Seq(
-      amazonAws.kinesisProducer,
-      amazonAws.cloudwatch % Test,
-      amazonAws.dynamodb   % Test
+      amazonAws.kinesisProducer excludeAll (ExclusionRule(organization = "org.slf4j")),
+      amazonAws.cloudwatch % Test excludeAll (ExclusionRule(organization = "org.slf4j")),
+      amazonAws.dynamodb   % Test excludeAll (ExclusionRule(organization = "org.slf4j"))
     ),
     Test / parallelExecution := false
   )
