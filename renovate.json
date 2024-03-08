@@ -13,8 +13,14 @@
       "automerge": true
     },
     {
-      "managers": ["sbt"],
-      "packagePatterns": ["^com\\.typesafe\\.akka"],
+      "matchManagers": ["sbt"],
+      "matchPackagePatterns": ["^com\\.typesafe\\.akka"],
+      "enabled": false
+    },
+    {
+      "matchManagers": ["sbt"],
+      "matchPackagePatterns": ["^com\\.amazonaws"],
+      "matchPackageNames": ["amazon-kinesis-producer"],
       "enabled": false
     }
   ],
